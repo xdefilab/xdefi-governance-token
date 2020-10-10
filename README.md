@@ -21,10 +21,4 @@ truffle compile
 
 truffle migrate --reset --network kovan
 
-### Kovan XDEX Contract Address
-
-[0xbFbA4038948274984bDb7d11dE488d69F2403f09]https://kovan.etherscan.io/address/0xbFbA4038948274984bDb7d11dE488d69F2403f09
-
-
-
 
