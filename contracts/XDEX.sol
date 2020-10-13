@@ -19,26 +19,13 @@ contract XDEX is ERC20, ERC20Detailed {
         _;
     }
 
-    modifier onlyMinter() {
-        require(minters[msg.sender], "Not Authorized, Only Minter");
-        _;
-    }
-
     function setCore(address _core) public onlyCore {
         emit CoreTransferred(core, _core);
         core = _core;
     }
 
-    function mint(address account, uint256 amount) public onlyMinter {
+    function mint(address account, uint256 amount) public onlyCore {
         _mint(account, amount);
-    }
-
-    function addMinter(address _minter) public onlyCore {
-        minters[_minter] = true;
-    }
-
-    function removeMinter(address _minter) public onlyCore {
-        minters[_minter] = false;
     }
 
     function burnForSelf(uint256 amount) external {
