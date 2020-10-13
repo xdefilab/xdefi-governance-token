@@ -21,12 +21,12 @@ contract('XStream', ([alice, bob, carol, minter]) => {
         this.xdex = await XDEX.new({ from: minter });
         this.halflife = await XHalflife.new(this.xdex.address, { from: minter });
         this.stream = await XStream.new(this.xdex.address, this.halflife.address, { from: minter });
-        await this.xdex.addMinter(alice, { from: minter });
+        await this.xdex.setCore(alice, { from: minter });
     });
 
     it('should set correct state variables', async () => {
         const xdexCore = await this.xdex.core();
-        assert.equal(xdexCore, minter);
+        assert.equal(xdexCore, alice);
     });
 
     context('should create streams successfully', async () => {
