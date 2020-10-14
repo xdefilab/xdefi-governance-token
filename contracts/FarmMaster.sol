@@ -55,6 +55,8 @@ contract FarmMaster is ReentrancyGuard {
         uint256 lastRewardBlock; // Last block number that XDEX distribution occurs.
     }
 
+    mapping(bytes32 => uint256) public lpIndexInPool;
+
     /*
         1-40000块，分发9600000个，每1块240个
         40001-120000块，分发9600000个，每块120个
@@ -191,7 +193,7 @@ contract FarmMaster is ReentrancyGuard {
                 lpAccPerShare: 0
             })
         );
-
+        lpIndexInPool[keccak256(abi.encodePacked(poolinfos_id, _lpToken))] = 1;
         emit AddPool(poolinfos_id, address(_lpToken), _lpTokenType, _lpFactor);
     }
 
@@ -204,12 +206,7 @@ contract FarmMaster is ReentrancyGuard {
         massUpdatePools();
 
         PoolInfo memory pool = poolInfo[_pid];
-        for (uint256 i = 0; i < pool.LpTokenInfos.length; i++) {
-            require(
-                _lpToken != pool.LpTokenInfos[i].lpToken,
-                "lp token already added"
-            );
-        }
+        require(lpIndexInPool[keccak256(abi.encodePacked(_pid, _lpToken))] == 0, "lp token already added");
 
         totalXFactor = totalXFactor.add(_lpFactor);
 
@@ -221,7 +218,36 @@ contract FarmMaster is ReentrancyGuard {
         });
         poolInfo[_pid].poolFactor = pool.poolFactor.add(_lpFactor);
         poolInfo[_pid].LpTokenInfos.push(lpTokenInfo);
+        lpIndexInPool[keccak256(abi.encodePacked(_pid, _lpToken))] = pool.LpTokenInfos.length + 1;
     }
+
+    function getLpTokenInfosByPoolId(uint256 _pid)
+    public
+    view
+    returns (
+        address[] memory lpTokens, uint256[] memory lpTokenTypes, uint256[] memory lpFactors, uint[] memory lpAccPerShares){
+        PoolInfo memory pool = poolInfo[_pid];
+        uint256 length = pool.LpTokenInfos.length;
+        lpTokens = new address[](length);
+        lpTokenTypes = new uint256[](length);
+        lpFactors = new uint256[](length);
+        lpAccPerShares = new uint256[](length);
+        for (uint256 i = 0; i < length; i++) {
+            lpTokens[i] = address(pool.LpTokenInfos[i].lpToken);
+            lpTokenTypes[i] = pool.LpTokenInfos[i].lpTokenType;
+            lpFactors[i] = pool.LpTokenInfos[i].lpFactor;
+            lpAccPerShares[i] = pool.LpTokenInfos[i].lpAccPerShare;
+        }
+
+    }
+
+    //storage save index start with 1,so need -1
+    function _getLpIndexInPool(uint256 _pid, IERC20 _lpToken) public view returns (uint256) {
+        uint256 index = lpIndexInPool[keccak256(abi.encodePacked(_pid, _lpToken))];
+        require(index > 0, "deposit the lp token which not exist");
+        return --index;
+    }
+
 
     // Update the given lpToken's lpFactor in the given pool. Can only be called by the owner.
     function setLpFactor(
@@ -235,17 +261,7 @@ contract FarmMaster is ReentrancyGuard {
         }
 
         PoolInfo storage pool = poolInfo[_pid];
-
-        bool found = false;
-        uint256 index = 0;
-        for (uint256 i = 0; i < pool.LpTokenInfos.length; i++) {
-            if (_lpToken == pool.LpTokenInfos[i].lpToken) {
-                found = true;
-                index = i;
-                break;
-            }
-        }
-
+        uint256 index = _getLpIndexInPool(_pid,_lpToken);
         //update poolFactor and totalXFactor
         uint256 poolFactorNew = pool
             .poolFactor
@@ -263,7 +279,9 @@ contract FarmMaster is ReentrancyGuard {
     function massUpdatePools() public {
         uint256 length = poolInfo.length;
         for (uint256 pid = 0; pid < length; ++pid) {
-            updatePool(pid);
+            if (poolInfo[pid].poolFactor > 0) {
+                updatePool(pid);
+            }
         }
     }
 
@@ -357,19 +375,7 @@ contract FarmMaster is ReentrancyGuard {
         require(msg.sender == tx.origin, "do not deposit from contract");
 
         PoolInfo storage pool = poolInfo[_pid];
-
-        bool found = false;
-        uint256 index = 0;
-        for (uint256 i = 0; i < pool.LpTokenInfos.length; i++) {
-            if (_lpToken == pool.LpTokenInfos[i].lpToken) {
-                found = true;
-                index = i;
-                break;
-            }
-        }
-
-        require(found, "deposit the lp token which not exist");
-
+        uint256 index = _getLpIndexInPool(_pid,_lpToken);
         updatePool(_pid);
 
         UserInfo storage user = poolInfo[_pid].LpTokenInfos[index].userInfo[msg
@@ -474,19 +480,7 @@ contract FarmMaster is ReentrancyGuard {
         //require(_isContract(msg.sender), "deposit addr should not contract");
 
         PoolInfo storage pool = poolInfo[_pid];
-
-        bool found = false;
-        uint256 index = 0;
-        for (uint256 i = 0; i < pool.LpTokenInfos.length; i++) {
-            if (_lpToken == pool.LpTokenInfos[i].lpToken) {
-                found = true;
-                index = i;
-                break;
-            }
-        }
-
-        require(found, "deposit the lp token which not exist");
-
+        uint256 index = _getLpIndexInPool(_pid,_lpToken);
         updatePool(_pid);
 
         UserInfo storage user = poolInfo[_pid].LpTokenInfos[index].userInfo[msg
