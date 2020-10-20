@@ -17,6 +17,10 @@ contract FarmMaster is ReentrancyGuard {
     uint256 constant StreamTypeVoting = 0;
     uint256 constant StreamTypeNormal = 1;
 
+    //min and max lpToken count in one pool
+    uint256 public constant LpTokenMinCount = 1;
+    uint256 public constant LpTokenMaxCount = 8;
+
     // Info of each user.
     struct UserInfo {
         uint256 amount; // How many LP tokens the user has provided.
@@ -55,16 +59,18 @@ contract FarmMaster is ReentrancyGuard {
         uint256 lastRewardBlock; // Last block number that XDEX distribution occurs.
     }
 
+    mapping(bytes32 => uint256) private lpIndexInPool;
+
     /*
-        1-40000块，分发9600000个，每1块240个
-        40001-120000块，分发9600000个，每块120个
-        120001-280000块，分发9600000个，每块60个
-        280001-600000块，分发9600000个，每块30个
-        从600000块后，每块常量分发8个
-    */
+     * In [0, 40000) blocks, 240 XDEX per block, 9600000 XDEX distributed;
+     * In [40000, 120000) blocks, 120 XDEX per block, 9600000 XDEX distributed;
+     * In [120000, 280000) blocks, 60 XDEX per block, 9600000 XDEX distributed;
+     * In [280001, 600000) blocks, 30 XDEX per block, 9600000 XDEX distributed;
+     * After 600000 blocks, 8 XDEX distributed per block.
+     */
     uint256[4] public bonusEndBlocks = [40000, 120000, 280000, 600000];
 
-    //240, 120, 60, 30, 8 xdex per block
+    // 240, 120, 60, 30, 8 XDEX per block
     uint256[5] public tokensPerBlock = [
         uint256(240 * ONE),
         uint256(120 * ONE),
@@ -73,10 +79,11 @@ contract FarmMaster is ReentrancyGuard {
         uint256(8 * ONE)
     ];
 
-    //首次入金激励(每用户一次)，10个
-    uint256 constant bonusFirstDeposit = 10 * ONE;
+    // First deposit incentive (once for each new user), 10 XDEX
+    uint256 public constant bonusFirstDeposit = 10 * ONE;
 
     address public core;
+    address public SAFU;
 
     // The XDEX TOKEN
     XDEX public xdex;
@@ -103,6 +110,19 @@ contract FarmMaster is ReentrancyGuard {
         uint256 lpFactor
     );
 
+    event AddLP(
+        uint256 indexed pid,
+        address indexed lpToken,
+        uint256 indexed lpType,
+        uint256 lpFactor
+    );
+
+    event UpdateFactor(
+        uint256 indexed pid,
+        address indexed lpToken,
+        uint256 lpFactor
+    );
+
     event Deposit(
         address indexed user,
         uint256 indexed pid,
@@ -123,6 +143,8 @@ contract FarmMaster is ReentrancyGuard {
         address indexed lpToken,
         uint256 amount
     );
+
+    event SetSAFU(address indexed SAFU);
 
     event CoreTransferred(address indexed _core, address indexed _coreNew);
 
@@ -171,6 +193,8 @@ contract FarmMaster is ReentrancyGuard {
         uint256 _lpFactor,
         bool _withUpdate
     ) public onlyCore {
+        require(_lpFactor > 0, "Lp Token Factor is zero");
+
         if (_withUpdate) {
             massUpdatePools();
         }
@@ -191,7 +215,7 @@ contract FarmMaster is ReentrancyGuard {
                 lpAccPerShare: 0
             })
         );
-
+        lpIndexInPool[keccak256(abi.encodePacked(poolinfos_id, _lpToken))] = 1;
         emit AddPool(poolinfos_id, address(_lpToken), _lpTokenType, _lpFactor);
     }
 
@@ -201,15 +225,22 @@ contract FarmMaster is ReentrancyGuard {
         uint256 _lpTokenType,
         uint256 _lpFactor
     ) public onlyCore poolExists(_pid) {
+        require(_lpFactor > 0, "Lp Token Factor is zero");
+
         massUpdatePools();
 
         PoolInfo memory pool = poolInfo[_pid];
-        for (uint256 i = 0; i < pool.LpTokenInfos.length; i++) {
-            require(
-                _lpToken != pool.LpTokenInfos[i].lpToken,
-                "lp token already added"
-            );
-        }
+        require(
+            lpIndexInPool[keccak256(abi.encodePacked(_pid, _lpToken))] == 0,
+            "lp token already added"
+        );
+
+        //check lpToken count
+        uint256 count = pool.LpTokenInfos.length;
+        require(
+            count >= LpTokenMinCount && count <= LpTokenMaxCount,
+            "pool lpToken length is bad"
+        );
 
         totalXFactor = totalXFactor.add(_lpFactor);
 
@@ -221,9 +252,61 @@ contract FarmMaster is ReentrancyGuard {
         });
         poolInfo[_pid].poolFactor = pool.poolFactor.add(_lpFactor);
         poolInfo[_pid].LpTokenInfos.push(lpTokenInfo);
+
+        //save lpToken index
+        lpIndexInPool[keccak256(abi.encodePacked(_pid, _lpToken))] =
+            pool.LpTokenInfos.length +
+            1;
+
+        emit AddLP(_pid, address(_lpToken), _lpTokenType, _lpFactor);
+    }
+
+    function getLpTokenInfosByPoolId(uint256 _pid)
+        public
+        view
+        poolExists(_pid)
+        returns (
+            address[] memory lpTokens,
+            uint256[] memory lpTokenTypes,
+            uint256[] memory lpFactors,
+            uint256[] memory lpAccPerShares
+        )
+    {
+        PoolInfo memory pool = poolInfo[_pid];
+        uint256 length = pool.LpTokenInfos.length;
+        lpTokens = new address[](length);
+        lpTokenTypes = new uint256[](length);
+        lpFactors = new uint256[](length);
+        lpAccPerShares = new uint256[](length);
+        for (uint256 i = 0; i < length; i++) {
+            lpTokens[i] = address(pool.LpTokenInfos[i].lpToken);
+            lpTokenTypes[i] = pool.LpTokenInfos[i].lpTokenType;
+            lpFactors[i] = pool.LpTokenInfos[i].lpFactor;
+            lpAccPerShares[i] = pool.LpTokenInfos[i].lpAccPerShare;
+        }
+    }
+
+    // View function to see user lpToken amount in pool on frontend.
+    function getUserLpAmounts(uint256 _pid, address _user)
+        public
+        view
+        poolExists(_pid)
+        returns (address[] memory lpTokens, uint256[] memory amounts)
+    {
+        PoolInfo memory pool = poolInfo[_pid];
+        uint256 length = pool.LpTokenInfos.length;
+        lpTokens = new address[](length);
+        amounts = new uint256[](length);
+        for (uint256 i = 0; i < length; i++) {
+            lpTokens[i] = address(pool.LpTokenInfos[i].lpToken);
+            UserInfo memory user = poolInfo[_pid].LpTokenInfos[i]
+                .userInfo[_user];
+            amounts[i] = user.amount;
+        }
     }
 
     // Update the given lpToken's lpFactor in the given pool. Can only be called by the owner.
+    // `_lpFactor` is 0, means the LpToken is soft deleted from pool.
     function setLpFactor(
         uint256 _pid,
         IERC20 _lpToken,
@@ -235,17 +318,7 @@ contract FarmMaster is ReentrancyGuard {
         }
 
         PoolInfo storage pool = poolInfo[_pid];
-
-        bool found = false;
-        uint256 index = 0;
-        for (uint256 i = 0; i < pool.LpTokenInfos.length; i++) {
-            if (_lpToken == pool.LpTokenInfos[i].lpToken) {
-                found = true;
-                index = i;
-                break;
-            }
-        }
-
+        uint256 index = _getLpIndexInPool(_pid, _lpToken);
         //update poolFactor and totalXFactor
         uint256 poolFactorNew = pool
             .poolFactor
@@ -257,23 +330,31 @@ contract FarmMaster is ReentrancyGuard {
             poolFactorNew
         );
         poolInfo[_pid].poolFactor = poolFactorNew;
+
+        emit UpdateFactor(_pid, address(_lpToken), _lpFactor);
     }
 
     // Update reward variables for all pools. Be careful of gas spending!
     function massUpdatePools() public {
         uint256 length = poolInfo.length;
         for (uint256 pid = 0; pid < length; ++pid) {
-            updatePool(pid);
+            if (poolInfo[pid].poolFactor > 0) {
+                updatePool(pid);
+            }
         }
     }
 
     // Update reward variables of the given pool to be up-to-date.
     function updatePool(uint256 _pid) public poolExists(_pid) {
-        PoolInfo storage pool = poolInfo[_pid];
-        if (block.number <= pool.lastRewardBlock) {
+        if (block.number <= poolInfo[_pid].lastRewardBlock) {
             return;
         }
 
+        if (poolInfo[_pid].poolFactor == 0 || totalXFactor == 0) {
+            return;
+        }
+
+        PoolInfo storage pool = poolInfo[_pid];
         (uint256 poolReward, , ) = getXCountToReward(
             pool.lastRewardBlock,
             block.number
@@ -309,6 +390,7 @@ contract FarmMaster is ReentrancyGuard {
     function pendingXDEX(uint256 _pid, address _user)
         external
         view
+        poolExists(_pid)
         returns (uint256)
     {
         PoolInfo memory pool = poolInfo[_pid];
@@ -353,23 +435,10 @@ contract FarmMaster is ReentrancyGuard {
         IERC20 _lpToken,
         uint256 _amount
     ) public poolExists(_pid) {
-        //require(_isContract(msg.sender), "deposit addr should not contract");
         require(msg.sender == tx.origin, "do not deposit from contract");
 
         PoolInfo storage pool = poolInfo[_pid];
-
-        bool found = false;
-        uint256 index = 0;
-        for (uint256 i = 0; i < pool.LpTokenInfos.length; i++) {
-            if (_lpToken == pool.LpTokenInfos[i].lpToken) {
-                found = true;
-                index = i;
-                break;
-            }
-        }
-
-        require(found, "deposit the lp token which not exist");
-
+        uint256 index = _getLpIndexInPool(_pid, _lpToken);
         updatePool(_pid);
 
         UserInfo storage user = poolInfo[_pid].LpTokenInfos[index].userInfo[msg
@@ -471,22 +540,10 @@ contract FarmMaster is ReentrancyGuard {
         IERC20 _lpToken,
         uint256 _amount
     ) public nonReentrant poolExists(_pid) {
-        //require(_isContract(msg.sender), "deposit addr should not contract");
+        require(msg.sender == tx.origin, "do not withdraw from contract");
 
         PoolInfo storage pool = poolInfo[_pid];
-
-        bool found = false;
-        uint256 index = 0;
-        for (uint256 i = 0; i < pool.LpTokenInfos.length; i++) {
-            if (_lpToken == pool.LpTokenInfos[i].lpToken) {
-                found = true;
-                index = i;
-                break;
-            }
-        }
-
-        require(found, "deposit the lp token which not exist");
-
+        uint256 index = _getLpIndexInPool(_pid, _lpToken);
         updatePool(_pid);
 
         UserInfo storage user = poolInfo[_pid].LpTokenInfos[index].userInfo[msg
@@ -585,7 +642,7 @@ contract FarmMaster is ReentrancyGuard {
             uint256 _stageTo
         )
     {
-        require(_from <= _to, "_from must >= _to");
+        require(_from <= _to, "_from must <= _to");
 
         uint256 stageFrom = 0;
         uint256 stageTo = 0;
@@ -661,29 +718,32 @@ contract FarmMaster is ReentrancyGuard {
         return tokensPerBlock[stage];
     }
 
-    // Safe xdex transfer function, just in case if rounding error causes pool to not have enough XDEX.
-    // function _safeXDexTransfer(address _to, uint256 _amount) internal {
-    //     uint256 xdexBal = xdex.balanceOf(address(this));
-    //     if (_amount > xdexBal) {
-    //         xdex.transfer(_to, xdexBal);
-    //     } else {
-    //         xdex.transfer(_to, _amount);
-    //     }
-    // }
-
-    function setCore(address _core) public onlyCore {
-        emit CoreTransferred(core, _core);
-        core = _core;
+    // Any token sent to this contract should transfer to SAFU
+    function gulp(address token, uint256 amount) public onlyCore {
+        require(SAFU != address(0), "not valid SAFU address");
+        IERC20(token).safeTransfer(SAFU, amount);
     }
 
-    function _isContract(address _target) internal view returns (bool) {
-        if (_target == address(0)) {
-            return false;
-        }
-        uint256 size;
-        assembly {
-            size := extcodesize(_target)
-        }
-        return size > 0;
+    function setCore(address _core) public onlyCore {
+        core = _core;
+        emit CoreTransferred(core, _core);
+    }
+
+    function setSAFU(address _safu) public onlyCore {
+        SAFU = _safu;
+        emit SetSAFU(_safu);
+    }
+
+    // The index in storage starts with 1, then need sub(1)
+    function _getLpIndexInPool(uint256 _pid, IERC20 _lpToken)
+        internal
+        view
+        returns (uint256)
+    {
+        uint256 index = lpIndexInPool[keccak256(
+            abi.encodePacked(_pid, _lpToken)
+        )];
+        require(index > 0, "deposit the lp token which not exist");
+        return --index;
     }
 }

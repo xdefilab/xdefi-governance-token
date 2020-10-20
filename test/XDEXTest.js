@@ -4,6 +4,7 @@ const XDEX = artifacts.require('XDEX');
 contract('XDEX', ([alice, bob, carol]) => {
     beforeEach(async () => {
         this.xdex = await XDEX.new({ from: alice });
+        this.xdex.addMinter(alice, { from: alice });
     });
 
     it('should have correct name and symbol and decimal', async () => {
