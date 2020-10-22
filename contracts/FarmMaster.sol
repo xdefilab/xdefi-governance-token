@@ -84,6 +84,8 @@ contract FarmMaster is ReentrancyGuard {
 
     address public core;
     address public SAFU;
+    // whitelist of claimable airdrop tokens
+    mapping(address => bool) public claimableTokens;
 
     // The XDEX TOKEN
     XDEX public xdex;
@@ -145,6 +147,11 @@ contract FarmMaster is ReentrancyGuard {
     );
 
     event SetSAFU(address indexed SAFU);
+    event Claim(
+        address indexed SAFU,
+        address indexed token,
+        uint256 indexed amount
+    );
 
     event CoreTransferred(address indexed _core, address indexed _coreNew);
 
@@ -718,10 +725,20 @@ contract FarmMaster is ReentrancyGuard {
         return tokensPerBlock[stage];
     }
 
-    // Any token sent to this contract should transfer to SAFU
-    function gulp(address token, uint256 amount) public onlyCore {
+    // Any airdrop tokens (in whitelist) sent to this contract, should transfer to SAFU
+    function claimRewards(address token, uint256 amount) public onlyCore {
         require(SAFU != address(0), "not valid SAFU address");
+        require(claimableTokens[token], "not claimable token");
+
         IERC20(token).safeTransfer(SAFU, amount);
+        emit Claim(SAFU, token, amount);
+    }
+
+    function updateClaimableTokens(address token, bool claimable)
+        public
+        onlyCore
+    {
+        claimableTokens[token] = claimable;
     }
 
     function setCore(address _core) public onlyCore {

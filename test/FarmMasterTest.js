@@ -44,6 +44,7 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
             await this.xdex.addMinter(this.master.address, { from: alice });
             await this.master.addPool(this.lp.address, 0, '100', true, { from: alice });
             await this.master.setVotingPool('10', { from: alice });
+            await this.stream.setCore(this.master.address, { from: alice });
             await this.lp.approve(this.master.address, '1000', { from: bob });
 
             await this.master.deposit(0, this.lp.address, '100', { from: bob });
@@ -64,6 +65,7 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
             await this.xdex.addMinter(this.master.address, { from: alice });
             await this.master.addPool(this.lp.address, 0, '100', true, { from: alice });//normal pool
             await this.master.setVotingPool('10', { from: alice });
+            await this.stream.setCore(this.master.address, { from: alice });
             await this.lp.approve(this.master.address, '1000', { from: bob });
 
             await time.advanceBlockTo('49');
@@ -148,6 +150,7 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
             await this.xdex.addMinter(this.master.address, { from: alice });
             await this.master.addPool(this.lp.address, 0, '100', true);
             await this.master.setVotingPool('10', { from: alice });
+            await this.stream.setCore(this.master.address, { from: alice });
             await this.lp.approve(this.master.address, '1000', { from: bob });
 
             await time.advanceBlockTo('129');
@@ -187,6 +190,7 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
             await this.xdex.addMinter(this.master.address, { from: alice });
             await this.master.addPool(this.lp.address, 0, '100', true);
             await this.master.setVotingPool('10', { from: alice });
+            await this.stream.setCore(this.master.address, { from: alice });
             await this.lp.approve(this.master.address, '1000', { from: bob });
 
             await time.advanceBlockTo('209');
@@ -212,6 +216,7 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
             this.master = await FarmMaster.new(this.xdex.address, this.stream.address, '300', alice, { from: alice });
             await this.xdex.addMinter(this.master.address, { from: alice });
             await this.master.setVotingPool('10', { from: alice });
+            await this.stream.setCore(this.master.address, { from: alice });
             await this.master.addPool(this.lp.address, 0, '100', true);
             await this.lp.approve(this.master.address, '1000', { from: alice });
             await this.lp.approve(this.master.address, '1000', { from: bob });
@@ -298,6 +303,7 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
             await this.xdex.addMinter(this.master.address, { from: alice });
             await this.lp.approve(this.master.address, '1000', { from: alice });
             await this.lp2.approve(this.master.address, '1000', { from: bob });
+            await this.stream.setCore(this.master.address, { from: alice });
 
             await this.master.addPool(this.lp.address, 0, '10', true);
             await this.master.addPool(this.lp2.address, 0, '20', true);
@@ -324,6 +330,7 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
             this.master = await FarmMaster.new(this.xdex.address, this.stream.address, '400', alice, { from: alice });
             await this.xdex.addMinter(this.master.address, { from: alice });
             await this.master.setVotingPool('10', { from: alice });
+            await this.stream.setCore(this.master.address, { from: alice });
             await this.lp.approve(this.master.address, '1000', { from: alice });
             await this.lp2.approve(this.master.address, '1000', { from: bob });
 
@@ -353,6 +360,7 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
             // start at block 500
             this.master = await FarmMaster.new(this.xdex.address, this.stream.address, '500', alice, { from: alice });
             await this.xdex.addMinter(this.master.address, { from: alice });
+            await this.stream.setCore(this.master.address, { from: alice });
             await this.lp.approve(this.master.address, '1000', { from: alice });
             await this.lp2.approve(this.master.address, '1000', { from: bob });
 
@@ -384,10 +392,11 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
         });
 
         it('should stop giving bonus XDEX after the bonus period ends', async () => {
-            // farm start at block 600
+            //farm start at block 600
             this.master = await FarmMaster.new(this.xdex.address, this.stream.address, '600', alice, { from: alice });
             await this.xdex.addMinter(this.master.address, { from: alice });
 
+            await this.stream.setCore(this.master.address, { from: alice });
             await this.lp.approve(this.master.address, '10000', { from: alice });
             await this.master.addPool(this.lp.address, 0, '1', true);
 
@@ -406,6 +415,106 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
             assert.equal((await this.master.pendingXDEX(0, alice)).toString(), '0');
             assert.equal((await this.xdex.balanceOf(alice)).toString(), '4680');
             */
+        });
+
+        it('should stop giving bonus XDEX when the pool factor is 0', async () => {
+            this.lp3 = await MockERC20.new('LPToken2', 'LP2', '10000000000', { from: minter });
+            await this.lp3.transfer(alice, '1000', { from: minter });
+            await this.lp3.transfer(bob, '1000', { from: minter });
+            await this.lp3.transfer(carol, '1000', { from: minter });
+
+            // start at block 700
+            this.master = await FarmMaster.new(this.xdex.address, this.stream.address, '700', alice, { from: alice });
+            await this.xdex.addMinter(this.master.address, { from: alice });
+            await this.stream.setCore(this.master.address, { from: alice });
+
+            await this.lp.approve(this.master.address, '1000', { from: alice });
+            await this.lp2.approve(this.master.address, '1000', { from: alice });
+            await this.lp2.approve(this.master.address, '1000', { from: bob });
+            await this.lp3.approve(this.master.address, '1000', { from: bob });
+            await this.lp.approve(this.master.address, '1000', { from: carol });
+            await this.lp3.approve(this.master.address, '1000', { from: carol });
+
+            await time.advanceBlockTo('660');
+            //Pool 0 -> (LP1, 10) + (LP3, 30)
+            await this.master.addPool(this.lp.address, 0, '10', false, { from: alice });
+            await this.master.addLpTokenToPool(0, this.lp3.address, 0, '30', { from: alice });
+
+            //Pool 1 -> (LP2, 20)
+            await this.master.addPool(this.lp2.address, 0, '20', true, { from: alice });
+
+            await time.advanceBlockTo('680');
+            //Alice: (P0, LP1, 10), (P1, LP2, 25)
+            //Bob: (P0, LP3, 20), (P1, LP2, 15)
+            //Carol: (P0, LP1, 30), (P0, LP3, 80)
+            await this.master.deposit(0, this.lp.address, '10', { from: alice });
+            await this.master.deposit(1, this.lp2.address, '25', { from: alice });
+            await this.master.deposit(0, this.lp3.address, '20', { from: bob });
+            await this.master.deposit(1, this.lp2.address, '15', { from: bob });
+            await this.master.deposit(0, this.lp.address, '30', { from: carol });
+            await this.master.deposit(0, this.lp3.address, '80', { from: carol });
+
+            //check balance
+            await time.advanceBlockTo('690');
+            assert.equal((await this.lp.balanceOf(this.master.address)).toString(), '40');
+            assert.equal((await this.lp2.balanceOf(this.master.address)).toString(), '40');
+            assert.equal((await this.lp3.balanceOf(this.master.address)).toString(), '100');
+
+            await time.advanceBlockTo('705');
+            // Alice should have P0: 50 XDEX, P1: 250 XDEX
+            // Bob should have P0: 120 XDEX, P1: 150 XDEX
+            // Carol should have P0: 630 XDEX, P1: 0 XDEX
+            assert.equal((await this.master.pendingXDEX(0, alice)).toString(), '50000000000000000000');
+            assert.equal((await this.master.pendingXDEX(1, alice)).toString(), '250000000000000000000');
+            assert.equal((await this.master.pendingXDEX(0, bob)).toString(), '120000000000000000000');
+            assert.equal((await this.master.pendingXDEX(1, bob)).toString(), '150000000000000000000');
+            assert.equal((await this.master.pendingXDEX(0, carol)).toString(), '630000000000000000000');
+            assert.equal((await this.master.pendingXDEX(1, carol)).toString(), '0');
+
+            await time.advanceBlockTo('709');
+            // change pool1 lp2 factor from 20 to 40
+            await this.master.setLpFactor(1, this.lp2.address, '40', true);// block 710
+
+            await time.advanceBlockTo('715');
+            // Alice should have P0: 50*2 + 37.5 XDEX, P1: 250*2 + 375 XDEX
+            // Bob should have P0: 120*2 + 90 XDEX, P1: 150*2 + 225 XDEX
+            // Carol should have P0: 630*2 + 360 + 112.5 XDEX, P1: 0 XDEX
+            assert.equal((await this.master.pendingXDEX(0, alice)).toString(), '137500000000000000000');
+            assert.equal((await this.master.pendingXDEX(1, alice)).toString(), '875000000000000000000');
+            assert.equal((await this.master.pendingXDEX(0, bob)).toString(), '330000000000000000000');
+            assert.equal((await this.master.pendingXDEX(1, bob)).toString(), '525000000000000000000');
+            assert.equal((await this.master.pendingXDEX(0, carol)).toString(), '1732500000000000000000');
+            assert.equal((await this.master.pendingXDEX(1, carol)).toString(), '0');
+
+            await time.advanceBlockTo('719');
+            //change pool0 lp1 factor to 0, then lp1 is soft deleted
+            //Pool 0 -> (LP1, 0) + (LP3, 30)
+            await this.master.setLpFactor(0, this.lp.address, '0', true);
+
+            await time.advanceBlockTo('725');
+            //Important: Alice should be 175
+            assert.equal((await this.master.pendingXDEX(0, alice)).toString(), '175000000000000000000');
+            assert.equal((await this.master.pendingXDEX(1, alice)).toString(), '1678571428571428571428');
+            assert.equal((await this.master.pendingXDEX(0, bob)).toString(), '522857142857142857142');
+            assert.equal((await this.master.pendingXDEX(1, bob)).toString(), '1007142857142857142856');
+            assert.equal((await this.master.pendingXDEX(0, carol)).toString(), '2616428571428571428571');
+            assert.equal((await this.master.pendingXDEX(1, carol)).toString(), '0');
+
+            await time.advanceBlockTo('729');
+            //change pool1 lp2 factor to 0, then pool1 is soft deleted
+            //Pool 1 -> (LP2, 0)
+            await this.master.setLpFactor(1, this.lp2.address, '0', true);
+
+            assert.equal((await this.master.pendingXDEX(0, alice)).toString(), '175000000000000000000');
+            assert.equal((await this.master.pendingXDEX(1, alice)).toString(), '2107142857142857142856');
+            assert.equal((await this.master.pendingXDEX(0, bob)).toString(), '625714285714285714285');
+            assert.equal((await this.master.pendingXDEX(1, bob)).toString(), '1264285714285714285714');
+            assert.equal((await this.master.pendingXDEX(0, carol)).toString(), '3027857142857142857142');
+            assert.equal((await this.master.pendingXDEX(1, carol)).toString(), '0');
+
+            await time.advanceBlockTo('735');
+            // assert.equal((await this.master.pendingXDEX(0, alice)).toString(), '600000000000000000000');
+            // assert.equal((await this.master.pendingXDEX(1, bob)).toString(), '3000000000000000000000');
         });
     });
 });

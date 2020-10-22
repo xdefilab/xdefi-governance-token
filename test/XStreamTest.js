@@ -21,12 +21,13 @@ contract('XStream', ([alice, bob, carol, minter]) => {
         this.xdex = await XDEX.new({ from: minter });
         this.halflife = await XHalflife.new(this.xdex.address, { from: minter });
         this.stream = await XStream.new(this.xdex.address, this.halflife.address, { from: minter });
-        await this.xdex.setCore(alice, { from: minter });
+        await this.stream.setCore(alice, { from: minter });
+        await this.xdex.addMinter(alice, { from: minter });
     });
 
     it('should set correct state variables', async () => {
         const xdexCore = await this.xdex.core();
-        assert.equal(xdexCore, alice);
+        assert.equal(xdexCore, minter);
     });
 
     context('should create streams successfully', async () => {
@@ -44,7 +45,6 @@ contract('XStream', ([alice, bob, carol, minter]) => {
             //emits a Create event
             truffleAssert.eventEmitted(result, "Create");
 
-            await time.advanceBlockTo('20');
             let stream = await this.halflife.getStream(Number(result.logs[0].args.streamId));
             assert.equal(stream.sender, this.stream.address);
             assert.equal(stream.recipient, bob);

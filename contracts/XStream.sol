@@ -53,6 +53,9 @@ contract XStream is ReentrancyGuard {
     // The XDEX TOKEN!
     XDEX public _xdex;
 
+    // Should be FarmMaster Contract
+    address public core;
+
     /**
      * @notice An interface of XHalfLife, the contract responsible for creating, withdrawing from and cancelling streams.
      */
@@ -78,6 +81,7 @@ contract XStream is ReentrancyGuard {
 
     /**
      * @notice User can have at most one votingStream and one normalStream.
+     * @param streamType The type of stream: 0 is votingStream, 1 is normalStream;
      */
     modifier lockStreamExists(address who, uint256 streamType) {
         bool found = false;
@@ -96,6 +100,14 @@ contract XStream is ReentrancyGuard {
             streamType == 0 || streamType == 1,
             "invalid stream type: 0 or 1"
         );
+        _;
+    }
+
+    /**
+     * @dev Throws if the msg.sender unauthorized.
+     */
+    modifier onlyCore() {
+        require(msg.sender == core, "Not authorized, only core");
         _;
     }
 
@@ -122,9 +134,12 @@ contract XStream is ReentrancyGuard {
         uint256 indexed amount
     );
 
+    event CoreTransferred(address indexed _core, address indexed _coreNew);
+
     constructor(XDEX _xdexToken, address _halflife) public {
         _xdex = _xdexToken;
         halflife = IXHalflife(_halflife);
+        core = msg.sender;
     }
 
     /**
@@ -170,8 +185,28 @@ contract XStream is ReentrancyGuard {
         external
         nonReentrant
         validStreamType(streamType)
+        onlyCore
         returns (uint256 streamId)
     {
+        require(recipient != address(0), "stream to the zero address");
+        require(recipient != address(this), "stream to the contract itself");
+        require(recipient != msg.sender, "stream to the caller");
+        require(depositAmount > 0, "depositAmount is zero");
+        require(startBlock >= block.number, "start block before block.number");
+
+        if (streamType == 0) {
+            require(
+                !(votingStreams[recipient].isEntity),
+                "voting stream exists"
+            );
+        }
+        if (streamType == 1) {
+            require(
+                !(normalStreams[recipient].isEntity),
+                "normal stream exists"
+            );
+        }
+
         uint256 unlockKBlocks = unlockKBlocksN;
         if (streamType == 0) {
             unlockKBlocks = unlockKBlocksV;
@@ -263,10 +298,16 @@ contract XStream is ReentrancyGuard {
         }
 
         (, address recipient, , , , , , , ) = halflife.getStream(streamId);
-        require(msg.sender == recipient, "user must be stream recipient");
+        require(msg.sender == recipient, "stream: user must be stream recipient");
 
         result = halflife.withdrawFromStream(streamId, amount);
 
         emit Withdraw(msg.sender, streamId, amount, streamType, result);
+    }
+
+    // core: Should be FarmMaster Contract
+    function setCore(address _core) public onlyCore {
+        core = _core;
+        emit CoreTransferred(core, _core);
     }
 }
