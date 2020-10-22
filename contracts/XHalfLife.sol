@@ -296,6 +296,7 @@ contract XHalfLife is ReentrancyGuard {
      * @dev Throws if the id does not point to a valid stream.
      *  Throws if the amount exceeds the withdrawable balance.
      *  Throws if the amount < the effective withdraw value.
+     *  Throws if the caller is not the recipient.
      * @param streamId The id of the stream to withdraw tokens from.
      * @param amount The amount of tokens to withdraw.
      * @return bool true=success, otherwise false.
@@ -304,6 +305,7 @@ contract XHalfLife is ReentrancyGuard {
         external
         nonReentrant
         streamExists(streamId)
+        onlySenderOrRecipient(streamId)
         returns (bool)
     {
         require(
@@ -311,14 +313,10 @@ contract XHalfLife is ReentrancyGuard {
             "amount is zero or little than the effective withdraw value"
         );
 
-        require(
-            streams[streamId].remaining >= effectiveValue,
-            "stream remaining balance is zero"
-        );
-
         (uint256 recipientBalance, uint256 remainingBalance) = balanceOf(
             streamId
         );
+
         require(
             recipientBalance >= amount,
             "withdraw amount exceeds the available balance"
@@ -374,6 +372,10 @@ contract XHalfLife is ReentrancyGuard {
             remaining
         );
         return true;
+    }
+
+    function getVersion() external pure returns (bytes32) {
+        return bytes32("APOLLO");
     }
 
     // Safe xdex transfer function, just in case if rounding error causes pool to not have enough XDEX.
