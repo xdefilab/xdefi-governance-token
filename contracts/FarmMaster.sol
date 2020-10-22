@@ -24,18 +24,7 @@ contract FarmMaster is ReentrancyGuard {
     // Info of each user.
     struct UserInfo {
         uint256 amount; // How many LP tokens the user has provided.
-        uint256 rewardDebt; // Reward debt. See explanation below.
-        //
-        // We do some fancy math here. Basically, any point in time, the amount of XDEX
-        // entitled to a user but is pending to be distributed is:
-        //
-        //   pending reward = (user.amount * pool.accXDEXPerShare) - user.rewardDebt
-        //
-        // Whenever a user deposits or withdraws LP tokens to a pool. Here's what happens:
-        //   1. The pool's `accXDEXPerShare` (and `lastRewardBlock`) gets updated.
-        //   2. User receives the pending reward sent to his/her address.
-        //   3. User's `amount` gets updated.
-        //   4. User's `rewardDebt` gets updated.
+        uint256 rewardDebt; // Reward debt.
     }
 
     struct LpTokenInfo {
@@ -403,11 +392,27 @@ contract FarmMaster is ReentrancyGuard {
         PoolInfo memory pool = poolInfo[_pid];
 
         uint256 totalPending = 0;
+        if (totalXFactor == 0 || pool.poolFactor == 0) {
+            for (uint256 i = 0; i < pool.LpTokenInfos.length; i++) {
+                UserInfo memory user = poolInfo[_pid].LpTokenInfos[i]
+                    .userInfo[_user];
+                totalPending = totalPending.add(
+                    user
+                        .amount
+                        .mul(pool.LpTokenInfos[i].lpAccPerShare)
+                        .div(1e12)
+                        .sub(user.rewardDebt)
+                );
+            }
+
+            return totalPending;
+        }
 
         (uint256 xdexReward, , ) = getXCountToReward(
             pool.lastRewardBlock,
             block.number
         );
+
         uint256 poolReward = xdexReward.mul(pool.poolFactor).div(totalXFactor);
 
         for (uint256 i = 0; i < pool.LpTokenInfos.length; i++) {
@@ -491,35 +496,38 @@ contract FarmMaster is ReentrancyGuard {
                 }
             }
         } else {
-            if (block.number >= startBlock) {
-                //if it is the first deposit
-                (bool hasVotingStream, bool hasNormalStream) = stream.hasStream(
-                    msg.sender
-                );
+            uint256 streamStart = block.number + 1;
+            if (block.number < startBlock) {
+                streamStart = startBlock;
+            }
 
-                //create the stream
-                if (_pid == votingPoolId) {
-                    if (hasVotingStream == false) {
-                        xdex.mint(address(this), bonusFirstDeposit);
-                        xdex.approve(address(stream), bonusFirstDeposit);
-                        stream.createStream(
-                            msg.sender,
-                            bonusFirstDeposit,
-                            StreamTypeVoting,
-                            block.number + 1
-                        );
-                    }
-                } else {
-                    if (hasNormalStream == false) {
-                        xdex.mint(address(this), bonusFirstDeposit);
-                        xdex.approve(address(stream), bonusFirstDeposit);
-                        stream.createStream(
-                            msg.sender,
-                            bonusFirstDeposit,
-                            StreamTypeNormal,
-                            block.number + 1
-                        );
-                    }
+            //if it is the first deposit
+            (bool hasVotingStream, bool hasNormalStream) = stream.hasStream(
+                msg.sender
+            );
+
+            //create the stream for First Deposit Bonus
+            if (_pid == votingPoolId) {
+                if (hasVotingStream == false) {
+                    xdex.mint(address(this), bonusFirstDeposit);
+                    xdex.approve(address(stream), bonusFirstDeposit);
+                    stream.createStream(
+                        msg.sender,
+                        bonusFirstDeposit,
+                        StreamTypeVoting,
+                        streamStart
+                    );
+                }
+            } else {
+                if (hasNormalStream == false) {
+                    xdex.mint(address(this), bonusFirstDeposit);
+                    xdex.approve(address(stream), bonusFirstDeposit);
+                    stream.createStream(
+                        msg.sender,
+                        bonusFirstDeposit,
+                        StreamTypeNormal,
+                        streamStart
+                    );
                 }
             }
         }

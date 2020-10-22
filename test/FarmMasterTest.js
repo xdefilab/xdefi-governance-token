@@ -427,6 +427,7 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
             this.master = await FarmMaster.new(this.xdex.address, this.stream.address, '700', alice, { from: alice });
             await this.xdex.addMinter(this.master.address, { from: alice });
             await this.stream.setCore(this.master.address, { from: alice });
+            await this.master.setVotingPool('10', { from: alice });
 
             await this.lp.approve(this.master.address, '1000', { from: alice });
             await this.lp2.approve(this.master.address, '1000', { from: alice });
@@ -473,7 +474,7 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
 
             await time.advanceBlockTo('709');
             // change pool1 lp2 factor from 20 to 40
-            await this.master.setLpFactor(1, this.lp2.address, '40', true);// block 710
+            await this.master.setLpFactor(1, this.lp2.address, '40', true);//block 710
 
             await time.advanceBlockTo('715');
             // Alice should have P0: 50*2 + 37.5 XDEX, P1: 250*2 + 375 XDEX
@@ -503,7 +504,7 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
             await time.advanceBlockTo('729');
             //change pool1 lp2 factor to 0, then pool1 is soft deleted
             //Pool 1 -> (LP2, 0)
-            await this.master.setLpFactor(1, this.lp2.address, '0', true);
+            await this.master.setLpFactor(1, this.lp2.address, '0', true);//block 730
 
             assert.equal((await this.master.pendingXDEX(0, alice)).toString(), '175000000000000000000');
             assert.equal((await this.master.pendingXDEX(1, alice)).toString(), '2107142857142857142856');
@@ -513,8 +514,44 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
             assert.equal((await this.master.pendingXDEX(1, carol)).toString(), '0');
 
             await time.advanceBlockTo('735');
-            // assert.equal((await this.master.pendingXDEX(0, alice)).toString(), '600000000000000000000');
-            // assert.equal((await this.master.pendingXDEX(1, bob)).toString(), '3000000000000000000000');
+            // From 730 to 735, Alice should have 0 XDEX
+            // From 730 to 735, Bob should have P0: 1200 * (20/100) = 240 XDEX
+            // From 730 to 735, Carol should have P0: 1200 * (80/100) = 960 XDEX
+            assert.equal((await this.master.pendingXDEX(0, alice)).toString(), '175000000000000000000');
+            assert.equal((await this.master.pendingXDEX(1, alice)).toString(), '2107142857142857142856');
+            assert.equal((await this.master.pendingXDEX(0, bob)).toString(), '865714285714285714285');//+240
+            assert.equal((await this.master.pendingXDEX(1, bob)).toString(), '1264285714285714285714');
+            assert.equal((await this.master.pendingXDEX(0, carol)).toString(), '3987857142857142857142');//+960
+            assert.equal((await this.master.pendingXDEX(1, carol)).toString(), '0');
+
+            await time.advanceBlockTo('739');
+            //change pool0 lp3 factor to 0, all pools are soft deleted
+            //then totalXFactor is 0
+            await this.master.setLpFactor(0, this.lp3.address, '0', true);
+
+            assert.equal((await this.master.pendingXDEX(0, alice)).toString(), '175000000000000000000');
+            assert.equal((await this.master.pendingXDEX(1, alice)).toString(), '2107142857142857142856');
+            assert.equal((await this.master.pendingXDEX(0, bob)).toString(), '1105714285714285714285');//+240
+            assert.equal((await this.master.pendingXDEX(1, bob)).toString(), '1264285714285714285714');
+            assert.equal((await this.master.pendingXDEX(0, carol)).toString(), '4947857142857142857142');//+960
+            assert.equal((await this.master.pendingXDEX(1, carol)).toString(), '0');
+
+            await time.advanceBlockTo('760');
+            // From 740 to 760, every one should have 0 XDEX 
+            assert.equal((await this.master.pendingXDEX(0, alice)).toString(), '175000000000000000000');
+            assert.equal((await this.master.pendingXDEX(1, alice)).toString(), '2107142857142857142856');
+            assert.equal((await this.master.pendingXDEX(0, bob)).toString(), '1105714285714285714285');
+            assert.equal((await this.master.pendingXDEX(1, bob)).toString(), '1264285714285714285714');
+            assert.equal((await this.master.pendingXDEX(0, carol)).toString(), '4947857142857142857142');
+            assert.equal((await this.master.pendingXDEX(1, carol)).toString(), '0');
+
+            //check alice's stream
+            let streamId = await this.stream.getStreamId(alice, StreamTypeNormal);
+            let withdrawable = (await this.halflife.balanceOf(streamId)).withdrawable.toString();
+            let remaining = (await this.halflife.balanceOf(streamId)).remaining.toString();
+            //console.log('streamId:', streamId, ',withdrawable:', withdrawable, ',remaining:', remaining);
+            assert.equal(withdrawable, '10000000000000000');//0.01
+            assert.equal(remaining, '9990000000000000000');//9.99
         });
     });
 });
