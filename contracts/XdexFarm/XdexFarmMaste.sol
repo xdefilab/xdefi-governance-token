@@ -4,11 +4,11 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "./XDEX.sol";
-import "./XStream.sol";
+//import "./XDEX.sol";
+import "./XdexStream.sol";
 
-// FarmMaster is the master of xDefi Farms.
-contract FarmMaster is ReentrancyGuard {
+// XDEFI Farm Master
+contract XdexFarmMaster is ReentrancyGuard {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
@@ -77,7 +77,7 @@ contract FarmMaster is ReentrancyGuard {
     mapping(address => bool) public claimableTokens;
 
     // The XDEX TOKEN
-    XDEX public xdex;
+    IERC20 public xdex;
 
     // The Halflife Protocol
     XStream public stream;
@@ -161,7 +161,7 @@ contract FarmMaster is ReentrancyGuard {
     }
 
     constructor(
-        XDEX _xdex,
+        IERC20 _xdex,
         XStream _stream,
         uint256 _startBlock,
         address _core
@@ -194,9 +194,8 @@ contract FarmMaster is ReentrancyGuard {
         if (_withUpdate) {
             massUpdatePools();
         }
-        uint256 _lastRewardBlock = block.number > startBlock
-            ? block.number
-            : startBlock;
+        uint256 _lastRewardBlock =
+            block.number > startBlock ? block.number : startBlock;
 
         totalXFactor = totalXFactor.add(_lpFactor);
 
@@ -240,12 +239,13 @@ contract FarmMaster is ReentrancyGuard {
 
         totalXFactor = totalXFactor.add(_lpFactor);
 
-        LpTokenInfo memory lpTokenInfo = LpTokenInfo({
-            lpToken: _lpToken,
-            lpTokenType: _lpTokenType,
-            lpFactor: _lpFactor,
-            lpAccPerShare: 0
-        });
+        LpTokenInfo memory lpTokenInfo =
+            LpTokenInfo({
+                lpToken: _lpToken,
+                lpTokenType: _lpTokenType,
+                lpFactor: _lpFactor,
+                lpAccPerShare: 0
+            });
         poolInfo[_pid].poolFactor = pool.poolFactor.add(_lpFactor);
         poolInfo[_pid].LpTokenInfos.push(lpTokenInfo);
 
@@ -295,8 +295,8 @@ contract FarmMaster is ReentrancyGuard {
         amounts = new uint256[](length);
         for (uint256 i = 0; i < length; i++) {
             lpTokens[i] = address(pool.LpTokenInfos[i].lpToken);
-            UserInfo memory user = poolInfo[_pid].LpTokenInfos[i]
-                .userInfo[_user];
+            UserInfo memory user =
+                poolInfo[_pid].LpTokenInfos[i].userInfo[_user];
             amounts[i] = user.amount;
         }
     }
@@ -316,10 +316,10 @@ contract FarmMaster is ReentrancyGuard {
         PoolInfo storage pool = poolInfo[_pid];
         uint256 index = _getLpIndexInPool(_pid, _lpToken);
         //update poolFactor and totalXFactor
-        uint256 poolFactorNew = pool
-            .poolFactor
-            .sub(pool.LpTokenInfos[index].lpFactor)
-            .add(_lpFactor);
+        uint256 poolFactorNew =
+            pool.poolFactor.sub(pool.LpTokenInfos[index].lpFactor).add(
+                _lpFactor
+            );
         pool.LpTokenInfos[index].lpFactor = _lpFactor;
 
         totalXFactor = totalXFactor.sub(poolInfo[_pid].poolFactor).add(
@@ -351,10 +351,8 @@ contract FarmMaster is ReentrancyGuard {
         }
 
         PoolInfo storage pool = poolInfo[_pid];
-        (uint256 poolReward, , ) = getXCountToReward(
-            pool.lastRewardBlock,
-            block.number
-        );
+        (uint256 poolReward, , ) =
+            getXCountToReward(pool.lastRewardBlock, block.number);
         poolReward = poolReward.mul(pool.poolFactor).div(totalXFactor);
 
         uint256 totalLpSupply = 0;
@@ -365,9 +363,8 @@ contract FarmMaster is ReentrancyGuard {
                 continue;
             }
             totalLpSupply = totalLpSupply.add(lpSupply);
-            uint256 lpReward = poolReward.mul(lpInfo.lpFactor).div(
-                pool.poolFactor
-            );
+            uint256 lpReward =
+                poolReward.mul(lpInfo.lpFactor).div(pool.poolFactor);
             pool.LpTokenInfos[i].lpAccPerShare = lpInfo.lpAccPerShare.add(
                 lpReward.mul(1e12).div(lpSupply)
             );
@@ -394,8 +391,8 @@ contract FarmMaster is ReentrancyGuard {
         uint256 totalPending = 0;
         if (totalXFactor == 0 || pool.poolFactor == 0) {
             for (uint256 i = 0; i < pool.LpTokenInfos.length; i++) {
-                UserInfo memory user = poolInfo[_pid].LpTokenInfos[i]
-                    .userInfo[_user];
+                UserInfo memory user =
+                    poolInfo[_pid].LpTokenInfos[i].userInfo[_user];
                 totalPending = totalPending.add(
                     user
                         .amount
@@ -408,10 +405,8 @@ contract FarmMaster is ReentrancyGuard {
             return totalPending;
         }
 
-        (uint256 xdexReward, , ) = getXCountToReward(
-            pool.lastRewardBlock,
-            block.number
-        );
+        (uint256 xdexReward, , ) =
+            getXCountToReward(pool.lastRewardBlock, block.number);
 
         uint256 poolReward = xdexReward.mul(pool.poolFactor).div(totalXFactor);
 
@@ -422,15 +417,14 @@ contract FarmMaster is ReentrancyGuard {
                 continue;
             }
             if (block.number > pool.lastRewardBlock) {
-                uint256 lpReward = poolReward.mul(lpInfo.lpFactor).div(
-                    pool.poolFactor
-                );
+                uint256 lpReward =
+                    poolReward.mul(lpInfo.lpFactor).div(pool.poolFactor);
                 lpInfo.lpAccPerShare = lpInfo.lpAccPerShare.add(
                     lpReward.mul(1e12).div(lpSupply)
                 );
             }
-            UserInfo memory user = poolInfo[_pid].LpTokenInfos[i]
-                .userInfo[_user];
+            UserInfo memory user =
+                poolInfo[_pid].LpTokenInfos[i].userInfo[_user];
             totalPending = totalPending.add(
                 user.amount.mul(lpInfo.lpAccPerShare).div(1e12).sub(
                     user.rewardDebt
@@ -453,29 +447,27 @@ contract FarmMaster is ReentrancyGuard {
         uint256 index = _getLpIndexInPool(_pid, _lpToken);
         updatePool(_pid);
 
-        UserInfo storage user = poolInfo[_pid].LpTokenInfos[index].userInfo[msg
-            .sender];
+        UserInfo storage user =
+            poolInfo[_pid].LpTokenInfos[index].userInfo[msg.sender];
 
         if (user.amount > 0) {
-            uint256 pending = user
-                .amount
-                .mul(pool.LpTokenInfos[index].lpAccPerShare)
-                .div(1e12)
-                .sub(user.rewardDebt);
+            uint256 pending =
+                user
+                    .amount
+                    .mul(pool.LpTokenInfos[index].lpAccPerShare)
+                    .div(1e12)
+                    .sub(user.rewardDebt);
 
             if (pending > 0) {
                 //create the stream or add funds to stream
-                (bool hasVotingStream, bool hasNormalStream) = stream.hasStream(
-                    msg.sender
-                );
+                (bool hasVotingStream, bool hasNormalStream) =
+                    stream.hasStream(msg.sender);
 
                 if (_pid == votingPoolId) {
                     if (hasVotingStream) {
                         //add funds
-                        uint256 streamId = stream.getStreamId(
-                            msg.sender,
-                            StreamTypeVoting
-                        );
+                        uint256 streamId =
+                            stream.getStreamId(msg.sender, StreamTypeVoting);
                         require(streamId > 0, "not valid stream id");
 
                         xdex.approve(address(stream), pending);
@@ -484,10 +476,8 @@ contract FarmMaster is ReentrancyGuard {
                 } else {
                     if (hasNormalStream) {
                         //add funds
-                        uint256 streamId = stream.getStreamId(
-                            msg.sender,
-                            StreamTypeNormal
-                        );
+                        uint256 streamId =
+                            stream.getStreamId(msg.sender, StreamTypeNormal);
                         require(streamId > 0, "not valid stream id");
 
                         xdex.approve(address(stream), pending);
@@ -502,9 +492,8 @@ contract FarmMaster is ReentrancyGuard {
             }
 
             //if it is the first deposit
-            (bool hasVotingStream, bool hasNormalStream) = stream.hasStream(
-                msg.sender
-            );
+            (bool hasVotingStream, bool hasNormalStream) =
+                stream.hasStream(msg.sender);
 
             //create the stream for First Deposit Bonus
             if (_pid == votingPoolId) {
@@ -561,21 +550,21 @@ contract FarmMaster is ReentrancyGuard {
         uint256 index = _getLpIndexInPool(_pid, _lpToken);
         updatePool(_pid);
 
-        UserInfo storage user = poolInfo[_pid].LpTokenInfos[index].userInfo[msg
-            .sender];
+        UserInfo storage user =
+            poolInfo[_pid].LpTokenInfos[index].userInfo[msg.sender];
         require(user.amount >= _amount, "withdraw: _amount not good");
 
-        uint256 pending = user
-            .amount
-            .mul(pool.LpTokenInfos[index].lpAccPerShare)
-            .div(1e12)
-            .sub(user.rewardDebt);
+        uint256 pending =
+            user
+                .amount
+                .mul(pool.LpTokenInfos[index].lpAccPerShare)
+                .div(1e12)
+                .sub(user.rewardDebt);
 
         if (pending > 0) {
             //create the stream or add funds to stream
-            (bool hasVotingStream, bool hasNormalStream) = stream.hasStream(
-                msg.sender
-            );
+            (bool hasVotingStream, bool hasNormalStream) =
+                stream.hasStream(msg.sender);
 
             /* Approve the Stream contract to spend. */
             xdex.approve(address(stream), pending);
@@ -583,10 +572,8 @@ contract FarmMaster is ReentrancyGuard {
             if (_pid == votingPoolId) {
                 if (hasVotingStream) {
                     //add fund
-                    uint256 streamId = stream.getStreamId(
-                        msg.sender,
-                        StreamTypeVoting
-                    );
+                    uint256 streamId =
+                        stream.getStreamId(msg.sender, StreamTypeVoting);
                     require(streamId > 0, "not valid stream id");
 
                     xdex.approve(address(stream), pending);
@@ -595,10 +582,8 @@ contract FarmMaster is ReentrancyGuard {
             } else {
                 if (hasNormalStream) {
                     //add fund
-                    uint256 streamId = stream.getStreamId(
-                        msg.sender,
-                        StreamTypeNormal
-                    );
+                    uint256 streamId =
+                        stream.getStreamId(msg.sender, StreamTypeNormal);
                     require(streamId > 0, "not valid stream id");
 
                     xdex.approve(address(stream), pending);
@@ -765,9 +750,8 @@ contract FarmMaster is ReentrancyGuard {
         view
         returns (uint256)
     {
-        uint256 index = lpIndexInPool[keccak256(
-            abi.encodePacked(_pid, _lpToken)
-        )];
+        uint256 index =
+            lpIndexInPool[keccak256(abi.encodePacked(_pid, _lpToken))];
         require(index > 0, "deposit the lp token which not exist");
         return --index;
     }

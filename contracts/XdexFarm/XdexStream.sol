@@ -1,63 +1,20 @@
 pragma solidity 0.5.17;
 
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "./interface/IXHalfLife.sol";
 
-import "./XDEX.sol";
-
-interface IXHalflife {
-    function createStream(
-        address recipient,
-        uint256 depositAmount,
-        uint256 startBlock,
-        uint256 kBlock,
-        uint256 unlockRatio
-    ) external returns (uint256);
-
-    function isStream(uint256 streamId) external view returns (bool);
-
-    function getStream(uint256 streamId)
-        external
-        view
-        returns (
-            address sender,
-            address recipient,
-            uint256 depositAmount,
-            uint256 startBlock,
-            uint256 kBlock,
-            uint256 remaining,
-            uint256 withdrawable,
-            uint256 unlockRatio,
-            uint256 lastRewardBlock
-        );
-
-    function fundStream(uint256 streamId, uint256 amount)
-        external
-        returns (bool);
-
-    function withdrawFromStream(uint256 streamId, uint256 amount)
-        external
-        returns (bool);
-
-    function balanceOf(uint256 streamId)
-        external
-        view
-        returns (uint256 withdrawable, uint256 remaining);
-
-    function cancelStream(uint256 streamId) external returns (bool);
-}
-
-contract XStream is ReentrancyGuard {
+contract XdexStream is ReentrancyGuard {
     uint256 constant ONE = 10**18;
     uint256 constant onePercent = 10**16;
 
-    // The XDEX TOKEN!
-    XDEX public _xdex;
+    IERC20 public xdex;
 
     // Should be FarmMaster Contract
     address public core;
 
     /**
-     * @notice An interface of XHalfLife, the contract responsible for creating, withdrawing from and cancelling streams.
+     * @notice An interface of XHalfLife, the contract responsible for creating, funding and withdrawing from streams.
      */
     IXHalflife public halflife;
 
@@ -111,33 +68,10 @@ contract XStream is ReentrancyGuard {
         _;
     }
 
-    event Create(
-        address indexed sender,
-        address indexed recipient,
-        uint256 indexed streamId,
-        uint256 streamType,
-        uint256 depositAmount,
-        uint256 startBlock
-    );
+    event SET_CORE(address indexed _core, address indexed _coreNew);
 
-    event Withdraw(
-        address indexed withdrawer,
-        uint256 indexed streamId,
-        uint256 indexed amount,
-        uint256 streamType,
-        bool result
-    );
-
-    event Fund(
-        address indexed sender,
-        uint256 indexed streamId,
-        uint256 indexed amount
-    );
-
-    event CoreTransferred(address indexed _core, address indexed _coreNew);
-
-    constructor(XDEX _xdexToken, address _halflife) public {
-        _xdex = _xdexToken;
+    constructor(IERC20 _xdex, address _halflife) public {
+        xdex = _xdex;
         halflife = IXHalflife(_halflife);
         core = msg.sender;
     }
@@ -213,10 +147,10 @@ contract XStream is ReentrancyGuard {
         }
 
         /* Approve the XHalflife contract to spend. */
-        _xdex.approve(address(halflife), depositAmount);
+        xdex.approve(address(halflife), depositAmount);
 
         /* Transfer the tokens to this contract. */
-        _xdex.transferFrom(msg.sender, address(this), depositAmount);
+        xdex.transferFrom(msg.sender, address(this), depositAmount);
 
         streamId = halflife.createStream(
             recipient,
@@ -239,15 +173,6 @@ contract XStream is ReentrancyGuard {
                 streamId: streamId
             });
         }
-
-        emit Create(
-            msg.sender,
-            recipient,
-            streamId,
-            streamType,
-            depositAmount,
-            startBlock
-        );
     }
 
     /**
@@ -262,52 +187,17 @@ contract XStream is ReentrancyGuard {
         require(amount > 0, "amount is zero");
 
         /* Approve the XHalflife contract to spend. */
-        _xdex.approve(address(halflife), amount);
+        xdex.approve(address(halflife), amount);
 
         /* Transfer the tokens to this contract. */
-        _xdex.transferFrom(msg.sender, address(this), amount);
+        xdex.transferFrom(msg.sender, address(this), amount);
 
         result = halflife.fundStream(streamId, amount);
-
-        emit Fund(msg.sender, streamId, amount);
-    }
-
-    /**
-     * @notice Withdraw from the votingStream or normalStream; `msg.sender` must be `recipient`
-     * @param streamType The type of stream: 0 is votingStream, 1 is normalStream;
-     * @param amount Withdraw amount
-     */
-    function withdraw(uint256 streamType, uint256 amount)
-        external
-        validStreamType(streamType)
-        returns (bool result)
-    {
-        uint256 streamId = 0;
-        if (streamType == 0) {
-            require(
-                votingStreams[msg.sender].isEntity,
-                "senders votingStream not exist"
-            );
-            streamId = votingStreams[msg.sender].streamId;
-        } else if (streamType == 1) {
-            require(
-                normalStreams[msg.sender].isEntity,
-                "senders normalStream not exist"
-            );
-            streamId = normalStreams[msg.sender].streamId;
-        }
-
-        (, address recipient, , , , , , , ) = halflife.getStream(streamId);
-        require(msg.sender == recipient, "stream: user must be stream recipient");
-
-        result = halflife.withdrawFromStream(streamId, amount);
-
-        emit Withdraw(msg.sender, streamId, amount, streamType, result);
     }
 
     // core: Should be FarmMaster Contract
     function setCore(address _core) public onlyCore {
+        emit SET_CORE(core, _core);
         core = _core;
-        emit CoreTransferred(core, _core);
     }
 }
