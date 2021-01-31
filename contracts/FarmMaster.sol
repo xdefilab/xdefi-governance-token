@@ -35,7 +35,6 @@ contract FarmMaster is ReentrancyGuard {
         //      Type1: UNI-LP;
         //      Type2: BPT;
         //      Type3: XLP;
-        //      Type4: yCrv;
         uint256 lpTokenType;
         uint256 lpFactor;
         uint256 lpAccPerShare; // Accumulated XDEX per share, times 1e12. See below.
@@ -149,7 +148,7 @@ contract FarmMaster is ReentrancyGuard {
      * @dev Throws if the msg.sender unauthorized.
      */
     modifier onlyCore() {
-        require(msg.sender == core, "Not authorized, only core");
+        require(msg.sender == core, "Not authorized");
         _;
     }
 
@@ -157,29 +156,28 @@ contract FarmMaster is ReentrancyGuard {
      * @dev Throws if the pid does not point to a valid pool.
      */
     modifier poolExists(uint256 _pid) {
-        require(_pid < poolInfo.length, "pool does not exist");
+        require(_pid < poolInfo.length, "pool not exist");
         _;
     }
 
-    constructor(
-        XDEX _xdex,
-        address _stream,
-        uint256 _startBlock,
-        address _core
-    ) public {
+    constructor(XDEX _xdex, uint256 _startBlock) public {
         xdex = _xdex;
-        stream = XdexStream(_stream);
         startBlock = _startBlock;
-        core = _core;
+        core = msg.sender;
     }
 
     function poolLength() external view returns (uint256) {
         return poolInfo.length;
     }
 
-    // Set the voting pool id. Can only be called by the core.
+    // Set the voting pool id. Can only be called by core.
     function setVotingPool(uint256 _pid) public onlyCore {
         votingPoolId = _pid;
+    }
+
+    // Set the xdex stream. Can only be called by core.
+    function setStream(address _stream) public onlyCore {
+        stream = XdexStream(_stream);
     }
 
     // Add a new lp to the pool. Can only be called by the core.
@@ -234,7 +232,7 @@ contract FarmMaster is ReentrancyGuard {
         //check lpToken count
         uint256 count = pool.LpTokenInfos.length;
         require(
-            count >= LpTokenMinCount && count <= LpTokenMaxCount,
+            count >= LpTokenMinCount && count < LpTokenMaxCount,
             "pool lpToken length is bad"
         );
 

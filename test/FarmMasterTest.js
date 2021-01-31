@@ -2,7 +2,7 @@ const { expectRevert, time } = require('@openzeppelin/test-helpers');
 const truffleAssert = require("truffle-assertions");
 const XDEX = artifacts.require('XDEX');
 const XHalflife = artifacts.require('XHalfLife');
-const XStream = artifacts.require('XStream');
+const XdexStream = artifacts.require('XdexStream');
 const FarmMaster = artifacts.require('FarmMaster');
 const MockERC20 = artifacts.require('MockToken');
 const StreamTypeVoting = 0;
@@ -11,12 +11,11 @@ const StreamTypeNormal = 1;
 contract('FarmMaster', ([alice, bob, carol, minter]) => {
     beforeEach(async () => {
         this.xdex = await XDEX.new({ from: alice });
-        this.halflife = await XHalflife.new(this.xdex.address, { from: alice });
-        this.stream = await XStream.new(this.xdex.address, this.halflife.address, { from: alice });
+        this.halflife = await XHalflife.new({ from: alice });
     });
 
     it('should set correct state variables', async () => {
-        this.master = await FarmMaster.new(this.xdex.address, this.stream.address, '0', alice, { from: minter });
+        this.master = await FarmMaster.new(this.xdex.address, '0', { from: minter });
 
         const masterCore = await this.master.core();
         const xdexCore = await this.xdex.core();
@@ -39,12 +38,12 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
 
         it('should allow emergency withdraw', async () => {
             // start at block 10
-            this.master = await FarmMaster.new(this.xdex.address, this.stream.address, '10', alice, { from: minter });
+            this.master = await FarmMaster.new(this.xdex.address, '10', { from: minter });
+            this.stream = await XdexStream.new(this.xdex.address, this.halflife.address, this.master.address);
 
             await this.xdex.addMinter(this.master.address, { from: alice });
             await this.master.addPool(this.lp.address, 0, '100', true, { from: alice });
             await this.master.setVotingPool('10', { from: alice });
-            await this.stream.setCore(this.master.address, { from: alice });
             await this.lp.approve(this.master.address, '1000', { from: bob });
 
             await this.master.deposit(0, this.lp.address, '100', { from: bob });
@@ -60,12 +59,12 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
 
         it('should give out different XDEX on each stage', async () => {
             // start at block 50
-            this.master = await FarmMaster.new(this.xdex.address, this.stream.address, '50', alice, { from: minter });
+            this.master = await FarmMaster.new(this.xdex.address, '50', { from: minter });
+            this.stream = await XdexStream.new(this.xdex.address, this.halflife.address, this.master.address);
 
-            await this.xdex.addMinter(this.master.address, { from: alice });
-            await this.master.addPool(this.lp.address, 0, '100', true, { from: alice });//normal pool
+            await this.master.setStream(this.stream.address);
+            await this.master.addPool(this.lp.address, 0, '100', true, { from: alice });//normal pool   
             await this.master.setVotingPool('10', { from: alice });
-            await this.stream.setCore(this.master.address, { from: alice });
             await this.lp.approve(this.master.address, '1000', { from: bob });
 
             await time.advanceBlockTo('49');
@@ -131,7 +130,7 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
 
         it('test calc XDex Counts To Reward', async () => {
             //farming starts at block 100
-            this.master = await FarmMaster.new(this.xdex.address, this.stream.address, '100', alice, { from: alice });
+            this.master = await FarmMaster.new(this.xdex.address, '100', { from: alice });
 
             let reward = (await this.master.getXCountToReward(10, 1000))._totalReward.toString();
             assert.equal(reward, '216000000000000000000000');
@@ -145,12 +144,12 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
 
         it('should give out XDEX only after farming time', async () => {
             //farming start at block 130
-            this.master = await FarmMaster.new(this.xdex.address, this.stream.address, '130', alice, { from: alice });
+            this.master = await FarmMaster.new(this.xdex.address, '130', { from: alice });
+            this.stream = await XdexStream.new(this.xdex.address, this.halflife.address, this.master.address);
 
-            await this.xdex.addMinter(this.master.address, { from: alice });
+            await this.master.setStream(this.stream.address);
             await this.master.addPool(this.lp.address, 0, '100', true);
             await this.master.setVotingPool('10', { from: alice });
-            await this.stream.setCore(this.master.address, { from: alice });
             await this.lp.approve(this.master.address, '1000', { from: bob });
 
             await time.advanceBlockTo('129');
@@ -185,12 +184,12 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
 
         it('should not distribute XDEX if no one deposit', async () => {
             // farming starts at block 100
-            this.master = await FarmMaster.new(this.xdex.address, this.stream.address, '210', alice, { from: alice });
+            this.master = await FarmMaster.new(this.xdex.address, '210', { from: alice });
+            this.stream = await XdexStream.new(this.xdex.address, this.halflife.address, this.master.address);
 
-            await this.xdex.addMinter(this.master.address, { from: alice });
+            await this.master.setStream(this.stream.address);
             await this.master.addPool(this.lp.address, 0, '100', true);
             await this.master.setVotingPool('10', { from: alice });
-            await this.stream.setCore(this.master.address, { from: alice });
             await this.lp.approve(this.master.address, '1000', { from: bob });
 
             await time.advanceBlockTo('209');
@@ -213,10 +212,11 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
 
         it('should distribute XDEX properly for each staker', async () => {
             // farm start at block 300
-            this.master = await FarmMaster.new(this.xdex.address, this.stream.address, '300', alice, { from: alice });
-            await this.xdex.addMinter(this.master.address, { from: alice });
+            this.master = await FarmMaster.new(this.xdex.address, '300', { from: alice });
+            this.stream = await XdexStream.new(this.xdex.address, this.halflife.address, this.master.address);
+
+            await this.master.setStream(this.stream.address);
             await this.master.setVotingPool('10', { from: alice });
-            await this.stream.setCore(this.master.address, { from: alice });
             await this.master.addPool(this.lp.address, 0, '100', true);
             await this.lp.approve(this.master.address, '1000', { from: alice });
             await this.lp.approve(this.master.address, '1000', { from: bob });
@@ -299,11 +299,12 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
 
         it('should set pool factor to each lp token', async () => {
             // start at block 400
-            this.master = await FarmMaster.new(this.xdex.address, this.stream.address, '380', alice, { from: alice });
-            await this.xdex.addMinter(this.master.address, { from: alice });
+            this.master = await FarmMaster.new(this.xdex.address, '380', { from: alice });
+            this.stream = await XdexStream.new(this.xdex.address, this.halflife.address, this.master.address);
+
+            await this.master.setStream(this.stream.address);
             await this.lp.approve(this.master.address, '1000', { from: alice });
             await this.lp2.approve(this.master.address, '1000', { from: bob });
-            await this.stream.setCore(this.master.address, { from: alice });
 
             await this.master.addPool(this.lp.address, 0, '10', true);
             await this.master.addPool(this.lp2.address, 0, '20', true);
@@ -327,10 +328,11 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
 
         it('should give proper XDEX allocation by xFactor to each pool', async () => {
             // start at block 400
-            this.master = await FarmMaster.new(this.xdex.address, this.stream.address, '400', alice, { from: alice });
-            await this.xdex.addMinter(this.master.address, { from: alice });
+            this.master = await FarmMaster.new(this.xdex.address, '400', { from: alice });
+            this.stream = await XdexStream.new(this.xdex.address, this.halflife.address, this.master.address);
+
+            await this.master.setStream(this.stream.address);
             await this.master.setVotingPool('10', { from: alice });
-            await this.stream.setCore(this.master.address, { from: alice });
             await this.lp.approve(this.master.address, '1000', { from: alice });
             await this.lp2.approve(this.master.address, '1000', { from: bob });
 
@@ -358,9 +360,10 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
 
         it('should accept multi lp tokens by each pool', async () => {
             // start at block 500
-            this.master = await FarmMaster.new(this.xdex.address, this.stream.address, '500', alice, { from: alice });
-            await this.xdex.addMinter(this.master.address, { from: alice });
-            await this.stream.setCore(this.master.address, { from: alice });
+            this.master = await FarmMaster.new(this.xdex.address, '500', { from: alice });
+            this.stream = await XdexStream.new(this.xdex.address, this.halflife.address, this.master.address);
+
+            await this.master.setStream(this.stream.address);
             await this.lp.approve(this.master.address, '1000', { from: alice });
             await this.lp2.approve(this.master.address, '1000', { from: bob });
 
@@ -393,10 +396,10 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
 
         it('should stop giving bonus XDEX after the bonus period ends', async () => {
             //farm start at block 600
-            this.master = await FarmMaster.new(this.xdex.address, this.stream.address, '600', alice, { from: alice });
-            await this.xdex.addMinter(this.master.address, { from: alice });
+            this.master = await FarmMaster.new(this.xdex.address, '600', { from: alice });
+            this.stream = await XdexStream.new(this.xdex.address, this.halflife.address, this.master.address);
 
-            await this.stream.setCore(this.master.address, { from: alice });
+            await this.master.setStream(this.stream.address);
             await this.lp.approve(this.master.address, '10000', { from: alice });
             await this.master.addPool(this.lp.address, 0, '1', true);
 
@@ -424,9 +427,10 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
             await this.lp3.transfer(carol, '1000', { from: minter });
 
             // start at block 700
-            this.master = await FarmMaster.new(this.xdex.address, this.stream.address, '700', alice, { from: alice });
-            await this.xdex.addMinter(this.master.address, { from: alice });
-            await this.stream.setCore(this.master.address, { from: alice });
+            this.master = await FarmMaster.new(this.xdex.address, '700', { from: alice });
+            this.stream = await XdexStream.new(this.xdex.address, this.halflife.address, this.master.address);
+
+            await this.master.setStream(this.stream.address);
             await this.master.setVotingPool('10', { from: alice });
 
             await this.lp.approve(this.master.address, '1000', { from: alice });
