@@ -9,19 +9,9 @@
                     "type": "address"
                 },
                 {
-                    "internalType": "address",
-                    "name": "_stream",
-                    "type": "address"
-                },
-                {
                     "internalType": "uint256",
                     "name": "_startBlock",
                     "type": "uint256"
-                },
-                {
-                    "internalType": "address",
-                    "name": "_core",
-                    "type": "address"
                 }
             ],
             "payable": false,
@@ -529,6 +519,21 @@
                 }
             ],
             "name": "setVotingPool",
+            "outputs": [],
+            "payable": false,
+            "stateMutability": "nonpayable",
+            "type": "function"
+        },
+        {
+            "constant": false,
+            "inputs": [
+                {
+                    "internalType": "address",
+                    "name": "_stream",
+                    "type": "address"
+                }
+            ],
+            "name": "setStream",
             "outputs": [],
             "payable": false,
             "stateMutability": "nonpayable",

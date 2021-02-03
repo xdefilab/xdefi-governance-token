@@ -3,20 +3,19 @@ pragma solidity 0.5.17;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 import "./XDEX.sol";
 import "./XdexStream.sol";
 
 // FarmMaster is the master of xDefi Farms.
-contract FarmMaster is ReentrancyGuard {
+contract FarmMaster {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
-    uint256 constant ONE = 10**18;
-    uint256 constant onePercent = 10**16;
-    uint256 constant StreamTypeVoting = 0;
-    uint256 constant StreamTypeNormal = 1;
+    uint256 private constant ONE = 10**18;
+    uint256 private constant onePercent = 10**16;
+    uint256 private constant StreamTypeVoting = 0;
+    uint256 private constant StreamTypeNormal = 1;
 
     //min and max lpToken count in one pool
     uint256 public constant LpTokenMinCount = 1;
@@ -48,38 +47,38 @@ contract FarmMaster is ReentrancyGuard {
         uint256 lastRewardBlock; // Last block number that XDEX distribution occurs.
     }
 
+    //key: hash(pid + lp address), value: index
     mapping(bytes32 => uint256) private lpIndexInPool;
 
     /*
-     * In [0, 40000) blocks, 240 XDEX per block, 9600000 XDEX distributed;
-     * In [40000, 120000) blocks, 120 XDEX per block, 9600000 XDEX distributed;
-     * In [120000, 280000) blocks, 60 XDEX per block, 9600000 XDEX distributed;
-     * In [280001, 600000) blocks, 30 XDEX per block, 9600000 XDEX distributed;
-     * After 600000 blocks, 8 XDEX distributed per block.
+     * In [0, 80000) blocks, 120 XDEX per block, 9600000 XDEX distributed;
+     * In [80000, 240000) blocks, 60 XDEX per block, 9600000 XDEX distributed;
+     * In [240000, 560000) blocks, 30 XDEX per block, 9600000 XDEX distributed;
+     * In [560000, 1200000) blocks, 15 XDEX per block, 9600000 XDEX distributed;
+     * After 1200000 blocks, 8 XDEX distributed per block.
      */
-    uint256[4] public bonusEndBlocks = [40000, 120000, 280000, 600000];
+    uint256[4] public bonusEndBlocks = [80000, 240000, 560000, 1200000];
 
-    // 240, 120, 60, 30, 8 XDEX per block
+    // 120, 60, 30, 15, 8 XDEX per block
     uint256[5] public tokensPerBlock = [
-        uint256(240 * ONE),
         uint256(120 * ONE),
         uint256(60 * ONE),
         uint256(30 * ONE),
+        uint256(15 * ONE),
         uint256(8 * ONE)
     ];
 
-    // First deposit incentive (once for each new user), 10 XDEX
+    // First deposit incentive (once for each new user): 10 XDEX
     uint256 public constant bonusFirstDeposit = 10 * ONE;
 
     address public core;
-    address public SAFU;
     // whitelist of claimable airdrop tokens
     mapping(address => bool) public claimableTokens;
 
     // The XDEX TOKEN
     XDEX public xdex;
 
-    // The Halflife Protocol
+    // The Halflife Proxy Contract
     XdexStream public stream;
 
     // The main voting pool id
@@ -91,7 +90,7 @@ contract FarmMaster is ReentrancyGuard {
     // Info of each pool.
     PoolInfo[] public poolInfo;
 
-    // Total allocation poitns. Must be the sum of all allocation points in all pools.
+    // Total allocation factors. Must be the sum of all allocation factors in all pools.
     uint256 public totalXFactor = 0;
 
     event AddPool(
@@ -135,9 +134,8 @@ contract FarmMaster is ReentrancyGuard {
         uint256 amount
     );
 
-    event SetSAFU(address indexed SAFU);
     event Claim(
-        address indexed SAFU,
+        address indexed to,
         address indexed token,
         uint256 indexed amount
     );
@@ -170,14 +168,20 @@ contract FarmMaster is ReentrancyGuard {
         return poolInfo.length;
     }
 
-    // Set the voting pool id. Can only be called by core.
+    // Set the voting pool id.
     function setVotingPool(uint256 _pid) public onlyCore {
         votingPoolId = _pid;
     }
 
-    // Set the xdex stream. Can only be called by core.
+    // Set the xdex stream proxy.
     function setStream(address _stream) public onlyCore {
         stream = XdexStream(_stream);
+    }
+
+    // Set new core
+    function setCore(address _core) public onlyCore {
+        emit SetCore(core, _core);
+        core = _core;
     }
 
     // Add a new lp to the pool. Can only be called by the core.
@@ -209,6 +213,7 @@ contract FarmMaster is ReentrancyGuard {
                 lpAccPerShare: 0
             })
         );
+        //The index in storage starts with 1, then need sub(1)
         lpIndexInPool[keccak256(abi.encodePacked(poolinfos_id, _lpToken))] = 1;
         emit AddPool(poolinfos_id, address(_lpToken), _lpTokenType, _lpFactor);
     }
@@ -249,6 +254,7 @@ contract FarmMaster is ReentrancyGuard {
         poolInfo[_pid].LpTokenInfos.push(lpTokenInfo);
 
         //save lpToken index
+        //The index in storage starts with 1, then need sub(1)
         lpIndexInPool[keccak256(abi.encodePacked(_pid, _lpToken))] =
             pool.LpTokenInfos.length +
             1;
@@ -278,25 +284,6 @@ contract FarmMaster is ReentrancyGuard {
             lpTokenTypes[i] = pool.LpTokenInfos[i].lpTokenType;
             lpFactors[i] = pool.LpTokenInfos[i].lpFactor;
             lpAccPerShares[i] = pool.LpTokenInfos[i].lpAccPerShare;
-        }
-    }
-
-    // View function to see user lpToken amount in pool on frontend.
-    function getUserLpAmounts(uint256 _pid, address _user)
-        public
-        view
-        poolExists(_pid)
-        returns (address[] memory lpTokens, uint256[] memory amounts)
-    {
-        PoolInfo memory pool = poolInfo[_pid];
-        uint256 length = pool.LpTokenInfos.length;
-        lpTokens = new address[](length);
-        amounts = new uint256[](length);
-        for (uint256 i = 0; i < length; i++) {
-            lpTokens[i] = address(pool.LpTokenInfos[i].lpToken);
-            UserInfo memory user =
-                poolInfo[_pid].LpTokenInfos[i].userInfo[_user];
-            amounts[i] = user.amount;
         }
     }
 
@@ -542,7 +529,7 @@ contract FarmMaster is ReentrancyGuard {
         uint256 _pid,
         IERC20 _lpToken,
         uint256 _amount
-    ) public nonReentrant poolExists(_pid) {
+    ) public poolExists(_pid) {
         require(msg.sender == tx.origin, "do not withdraw from contract");
 
         PoolInfo storage pool = poolInfo[_pid];
@@ -606,11 +593,7 @@ contract FarmMaster is ReentrancyGuard {
     }
 
     // Withdraw without caring about rewards. EMERGENCY ONLY.
-    function emergencyWithdraw(uint256 _pid)
-        public
-        nonReentrant
-        poolExists(_pid)
-    {
+    function emergencyWithdraw(uint256 _pid) public poolExists(_pid) {
         PoolInfo storage pool = poolInfo[_pid];
 
         for (uint256 i = 0; i < pool.LpTokenInfos.length; i++) {
@@ -632,6 +615,21 @@ contract FarmMaster is ReentrancyGuard {
         }
     }
 
+    // Batch collect function in pool on frontend
+    function batchCollectReward(uint256 _pid) external poolExists(_pid) {
+        PoolInfo storage pool = poolInfo[_pid];
+        uint256 length = pool.LpTokenInfos.length;
+
+        for (uint8 i = 0; i < length; i++) {
+            IERC20 lpToken = pool.LpTokenInfos[i].lpToken;
+            UserInfo storage user = pool.LpTokenInfos[i].userInfo[msg.sender];
+            if (user.amount > 0) {
+                //collect
+                withdraw(_pid, lpToken, 0);
+            }
+        }
+    }
+
     function getXCountToReward(uint256 _from, uint256 _to)
         public
         view
@@ -649,13 +647,14 @@ contract FarmMaster is ReentrancyGuard {
         if (_to < startBlock) {
             return (0, stageFrom, stageTo);
         }
+
         if (
             _from >= startBlock.add(bonusEndBlocks[bonusEndBlocks.length - 1])
         ) {
             return (
                 _to.sub(_from).mul(tokensPerBlock[tokensPerBlock.length - 1]),
-                stageFrom,
-                stageTo
+                bonusEndBlocks.length + 1,
+                bonusEndBlocks.length + 1
             );
         }
 
@@ -680,6 +679,7 @@ contract FarmMaster is ReentrancyGuard {
             if (indexDiff == 0) {
                 total += (_to - _from) * tokensPerBlock[tStageFrom];
                 _from = _to;
+                break;
             } else if (indexDiff > 0) {
                 uint256 actualRes = startBlock.add(bonusEndBlocks[tStageFrom]);
                 total += (actualRes - _from) * tokensPerBlock[tStageFrom];
@@ -694,7 +694,7 @@ contract FarmMaster is ReentrancyGuard {
         return (total, stageFrom, stageTo);
     }
 
-    function getCurRewardPerBlock() public view returns (uint256) {
+    function getCurRewardPerBlock() external view returns (uint256) {
         uint256 bnum = block.number;
         if (bnum < startBlock) {
             return 0;
@@ -717,13 +717,12 @@ contract FarmMaster is ReentrancyGuard {
         return tokensPerBlock[stage];
     }
 
-    // Any airdrop tokens (in whitelist) sent to this contract, should transfer to SAFU
+    // Any airdrop tokens (in whitelist) sent to this contract, should transfer to core
     function claimRewards(address token, uint256 amount) public onlyCore {
-        require(SAFU != address(0), "not valid SAFU address");
         require(claimableTokens[token], "not claimable token");
 
-        IERC20(token).safeTransfer(SAFU, amount);
-        emit Claim(SAFU, token, amount);
+        IERC20(token).safeTransfer(core, amount);
+        emit Claim(core, token, amount);
     }
 
     function updateClaimableTokens(address token, bool claimable)
@@ -731,16 +730,6 @@ contract FarmMaster is ReentrancyGuard {
         onlyCore
     {
         claimableTokens[token] = claimable;
-    }
-
-    function setCore(address _core) public onlyCore {
-        emit SetCore(core, _core);
-        core = _core;
-    }
-
-    function setSAFU(address _safu) public onlyCore {
-        emit SetSAFU(_safu);
-        SAFU = _safu;
     }
 
     // The index in storage starts with 1, then need sub(1)
