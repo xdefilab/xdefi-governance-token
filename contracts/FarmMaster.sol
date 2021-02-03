@@ -3,12 +3,13 @@ pragma solidity 0.5.17;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 import "./XDEX.sol";
 import "./XdexStream.sol";
 
 // FarmMaster is the master of xDefi Farms.
-contract FarmMaster {
+contract FarmMaster is ReentrancyGuard {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
@@ -294,7 +295,7 @@ contract FarmMaster {
         IERC20 _lpToken,
         uint256 _lpFactor,
         bool _withUpdate
-    ) public onlyCore poolExists(_pid) {
+    ) public nonReentrant onlyCore poolExists(_pid) {
         if (_withUpdate) {
             massUpdatePools();
         }
@@ -426,7 +427,7 @@ contract FarmMaster {
         uint256 _pid,
         IERC20 _lpToken,
         uint256 _amount
-    ) public poolExists(_pid) {
+    ) public nonReentrant poolExists(_pid) {
         require(msg.sender == tx.origin, "do not deposit from contract");
 
         PoolInfo storage pool = poolInfo[_pid];
@@ -529,7 +530,7 @@ contract FarmMaster {
         uint256 _pid,
         IERC20 _lpToken,
         uint256 _amount
-    ) public poolExists(_pid) {
+    ) public nonReentrant poolExists(_pid) {
         require(msg.sender == tx.origin, "do not withdraw from contract");
 
         PoolInfo storage pool = poolInfo[_pid];
@@ -593,7 +594,11 @@ contract FarmMaster {
     }
 
     // Withdraw without caring about rewards. EMERGENCY ONLY.
-    function emergencyWithdraw(uint256 _pid) public poolExists(_pid) {
+    function emergencyWithdraw(uint256 _pid)
+        public
+        nonReentrant
+        poolExists(_pid)
+    {
         PoolInfo storage pool = poolInfo[_pid];
 
         for (uint256 i = 0; i < pool.LpTokenInfos.length; i++) {
@@ -616,7 +621,11 @@ contract FarmMaster {
     }
 
     // Batch collect function in pool on frontend
-    function batchCollectReward(uint256 _pid) external poolExists(_pid) {
+    function batchCollectReward(uint256 _pid)
+        external
+        nonReentrant
+        poolExists(_pid)
+    {
         PoolInfo storage pool = poolInfo[_pid];
         uint256 length = pool.LpTokenInfos.length;
 
@@ -712,13 +721,13 @@ contract FarmMaster {
 
         require(
             stage >= 0 && stage < tokensPerBlock.length,
-            "tokensPerBlock.length: not good"
+            "tokensPerBlock length not good"
         );
         return tokensPerBlock[stage];
     }
 
     // Any airdrop tokens (in whitelist) sent to this contract, should transfer to core
-    function claimRewards(address token, uint256 amount) public onlyCore {
+    function claimRewards(address token, uint256 amount) external onlyCore {
         require(claimableTokens[token], "not claimable token");
 
         IERC20(token).safeTransfer(core, amount);
@@ -726,7 +735,7 @@ contract FarmMaster {
     }
 
     function updateClaimableTokens(address token, bool claimable)
-        public
+        external
         onlyCore
     {
         claimableTokens[token] = claimable;
