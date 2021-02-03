@@ -86,7 +86,7 @@
                 {
                     "indexed": true,
                     "internalType": "address",
-                    "name": "SAFU",
+                    "name": "to",
                     "type": "address"
                 },
                 {
@@ -191,19 +191,6 @@
             "inputs": [
                 {
                     "indexed": true,
-                    "internalType": "address",
-                    "name": "SAFU",
-                    "type": "address"
-                }
-            ],
-            "name": "SetSAFU",
-            "type": "event"
-        },
-        {
-            "anonymous": false,
-            "inputs": [
-                {
-                    "indexed": true,
                     "internalType": "uint256",
                     "name": "pid",
                     "type": "uint256"
@@ -279,21 +266,6 @@
                     "internalType": "uint256",
                     "name": "",
                     "type": "uint256"
-                }
-            ],
-            "payable": false,
-            "stateMutability": "view",
-            "type": "function"
-        },
-        {
-            "constant": true,
-            "inputs": [],
-            "name": "SAFU",
-            "outputs": [
-                {
-                    "internalType": "address",
-                    "name": "",
-                    "type": "address"
                 }
             ],
             "payable": false,
@@ -543,6 +515,21 @@
             "constant": false,
             "inputs": [
                 {
+                    "internalType": "address",
+                    "name": "_core",
+                    "type": "address"
+                }
+            ],
+            "name": "setCore",
+            "outputs": [],
+            "payable": false,
+            "stateMutability": "nonpayable",
+            "type": "function"
+        },
+        {
+            "constant": false,
+            "inputs": [
+                {
                     "internalType": "contract IERC20",
                     "name": "_lpToken",
                     "type": "address"
@@ -628,37 +615,6 @@
                 {
                     "internalType": "uint256[]",
                     "name": "lpAccPerShares",
-                    "type": "uint256[]"
-                }
-            ],
-            "payable": false,
-            "stateMutability": "view",
-            "type": "function"
-        },
-        {
-            "constant": true,
-            "inputs": [
-                {
-                    "internalType": "uint256",
-                    "name": "_pid",
-                    "type": "uint256"
-                },
-                {
-                    "internalType": "address",
-                    "name": "_user",
-                    "type": "address"
-                }
-            ],
-            "name": "getUserLpAmounts",
-            "outputs": [
-                {
-                    "internalType": "address[]",
-                    "name": "lpTokens",
-                    "type": "address[]"
-                },
-                {
-                    "internalType": "uint256[]",
-                    "name": "amounts",
                     "type": "uint256[]"
                 }
             ],
@@ -812,6 +768,21 @@
             "type": "function"
         },
         {
+            "constant": false,
+            "inputs": [
+                {
+                    "internalType": "uint256",
+                    "name": "_pid",
+                    "type": "uint256"
+                }
+            ],
+            "name": "batchCollectReward",
+            "outputs": [],
+            "payable": false,
+            "stateMutability": "nonpayable",
+            "type": "function"
+        },
+        {
             "constant": true,
             "inputs": [
                 {
@@ -897,36 +868,6 @@
                 }
             ],
             "name": "updateClaimableTokens",
-            "outputs": [],
-            "payable": false,
-            "stateMutability": "nonpayable",
-            "type": "function"
-        },
-        {
-            "constant": false,
-            "inputs": [
-                {
-                    "internalType": "address",
-                    "name": "_core",
-                    "type": "address"
-                }
-            ],
-            "name": "setCore",
-            "outputs": [],
-            "payable": false,
-            "stateMutability": "nonpayable",
-            "type": "function"
-        },
-        {
-            "constant": false,
-            "inputs": [
-                {
-                    "internalType": "address",
-                    "name": "_safu",
-                    "type": "address"
-                }
-            ],
-            "name": "setSAFU",
             "outputs": [],
             "payable": false,
             "stateMutability": "nonpayable",
