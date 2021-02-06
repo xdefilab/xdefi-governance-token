@@ -19,8 +19,9 @@ contract FarmMaster is ReentrancyGuard {
     uint256 private constant StreamTypeNormal = 1;
 
     //min and max lpToken count in one pool
-    uint256 public constant LpTokenMinCount = 1;
-    uint256 public constant LpTokenMaxCount = 8;
+    uint256 private constant LpTokenMinCount = 1;
+    uint256 private constant LpTokenMaxCount = 8;
+    uint256 private constant PoolMaxCount = 64;
 
     // Info of each user.
     struct UserInfo {
@@ -142,6 +143,7 @@ contract FarmMaster is ReentrancyGuard {
     );
 
     event SetCore(address indexed _core, address indexed _coreNew);
+    event SetStream(address indexed _stream, address indexed _streamNew);
 
     /**
      * @dev Throws if the msg.sender unauthorized.
@@ -170,17 +172,18 @@ contract FarmMaster is ReentrancyGuard {
     }
 
     // Set the voting pool id.
-    function setVotingPool(uint256 _pid) public onlyCore {
+    function setVotingPool(uint256 _pid) external onlyCore {
         votingPoolId = _pid;
     }
 
     // Set the xdex stream proxy.
-    function setStream(address _stream) public onlyCore {
+    function setStream(address _stream) external onlyCore {
+        emit SetStream(stream, _stream);
         stream = XdexStream(_stream);
     }
 
     // Set new core
-    function setCore(address _core) public onlyCore {
+    function setCore(address _core) external onlyCore {
         emit SetCore(core, _core);
         core = _core;
     }
@@ -193,6 +196,7 @@ contract FarmMaster is ReentrancyGuard {
         uint256 _lpFactor,
         bool _withUpdate
     ) public onlyCore {
+        require(poolInfo.length < PoolMaxCount, "MAX Pool Count Error")
         require(_lpFactor > 0, "Lp Token Factor is zero");
 
         if (_withUpdate) {
@@ -264,7 +268,7 @@ contract FarmMaster is ReentrancyGuard {
     }
 
     function getLpTokenInfosByPoolId(uint256 _pid)
-        public
+        external
         view
         poolExists(_pid)
         returns (
@@ -280,7 +284,7 @@ contract FarmMaster is ReentrancyGuard {
         lpTokenTypes = new uint256[](length);
         lpFactors = new uint256[](length);
         lpAccPerShares = new uint256[](length);
-        for (uint256 i = 0; i < length; i++) {
+        for (uint8 i = 0; i < length; i++) {
             lpTokens[i] = address(pool.LpTokenInfos[i].lpToken);
             lpTokenTypes[i] = pool.LpTokenInfos[i].lpTokenType;
             lpFactors[i] = pool.LpTokenInfos[i].lpFactor;
@@ -320,7 +324,7 @@ contract FarmMaster is ReentrancyGuard {
     // Update reward variables for all pools. Be careful of gas spending!
     function massUpdatePools() public {
         uint256 length = poolInfo.length;
-        for (uint256 pid = 0; pid < length; ++pid) {
+        for (uint8 pid = 0; pid < length; ++pid) {
             if (poolInfo[pid].poolFactor > 0) {
                 updatePool(pid);
             }
@@ -343,7 +347,7 @@ contract FarmMaster is ReentrancyGuard {
         poolReward = poolReward.mul(pool.poolFactor).div(totalXFactor);
 
         uint256 totalLpSupply = 0;
-        for (uint256 i = 0; i < pool.LpTokenInfos.length; i++) {
+        for (uint8 i = 0; i < pool.LpTokenInfos.length; i++) {
             LpTokenInfo memory lpInfo = pool.LpTokenInfos[i];
             uint256 lpSupply = lpInfo.lpToken.balanceOf(address(this));
             if (lpSupply == 0) {
@@ -377,7 +381,7 @@ contract FarmMaster is ReentrancyGuard {
 
         uint256 totalPending = 0;
         if (totalXFactor == 0 || pool.poolFactor == 0) {
-            for (uint256 i = 0; i < pool.LpTokenInfos.length; i++) {
+            for (uint8 i = 0; i < pool.LpTokenInfos.length; i++) {
                 UserInfo memory user =
                     poolInfo[_pid].LpTokenInfos[i].userInfo[_user];
                 totalPending = totalPending.add(
@@ -397,7 +401,7 @@ contract FarmMaster is ReentrancyGuard {
 
         uint256 poolReward = xdexReward.mul(pool.poolFactor).div(totalXFactor);
 
-        for (uint256 i = 0; i < pool.LpTokenInfos.length; i++) {
+        for (uint8 i = 0; i < pool.LpTokenInfos.length; i++) {
             LpTokenInfo memory lpInfo = pool.LpTokenInfos[i];
             uint256 lpSupply = lpInfo.lpToken.balanceOf(address(this));
             if (lpSupply == 0) {
@@ -427,9 +431,7 @@ contract FarmMaster is ReentrancyGuard {
         uint256 _pid,
         IERC20 _lpToken,
         uint256 _amount
-    ) public nonReentrant poolExists(_pid) {
-        require(msg.sender == tx.origin, "do not deposit from contract");
-
+    ) external nonReentrant poolExists(_pid) {
         PoolInfo storage pool = poolInfo[_pid];
         uint256 index = _getLpIndexInPool(_pid, _lpToken);
         updatePool(_pid);
@@ -525,14 +527,11 @@ contract FarmMaster is ReentrancyGuard {
         emit Deposit(msg.sender, _pid, address(_lpToken), _amount);
     }
 
-    // Withdraw LP tokens from MasterChef.
     function withdraw(
         uint256 _pid,
         IERC20 _lpToken,
         uint256 _amount
     ) public nonReentrant poolExists(_pid) {
-        require(msg.sender == tx.origin, "do not withdraw from contract");
-
         PoolInfo storage pool = poolInfo[_pid];
         uint256 index = _getLpIndexInPool(_pid, _lpToken);
         updatePool(_pid);
@@ -595,13 +594,13 @@ contract FarmMaster is ReentrancyGuard {
 
     // Withdraw without caring about rewards. EMERGENCY ONLY.
     function emergencyWithdraw(uint256 _pid)
-        public
+        external
         nonReentrant
         poolExists(_pid)
     {
         PoolInfo storage pool = poolInfo[_pid];
 
-        for (uint256 i = 0; i < pool.LpTokenInfos.length; i++) {
+        for (uint8 i = 0; i < pool.LpTokenInfos.length; i++) {
             LpTokenInfo storage lpInfo = pool.LpTokenInfos[i];
             UserInfo storage user = lpInfo.userInfo[msg.sender];
 
@@ -714,7 +713,7 @@ contract FarmMaster is ReentrancyGuard {
         uint256 stage = 0;
         for (uint256 i = 0; i < bonusEndBlocks.length; i++) {
             uint256 actualEndBlock = startBlock.add(bonusEndBlocks[i]);
-            if (bnum > actualEndBlock) {
+            if (bnum >= actualEndBlock) {
                 stage = stage.add(1);
             }
         }
