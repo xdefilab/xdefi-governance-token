@@ -668,7 +668,7 @@ contract FarmMaster is ReentrancyGuard {
 
         uint256 total = 0;
 
-        for (uint8 i = 0; i < bonusEndBlocks.length; i++) {
+        for (uint256 i = 0; i < bonusEndBlocks.length; i++) {
             uint256 actualEndBlock = startBlock.add(bonusEndBlocks[i]);
             if (_from > actualEndBlock) {
                 stageFrom = stageFrom.add(1);
@@ -711,7 +711,7 @@ contract FarmMaster is ReentrancyGuard {
             return tokensPerBlock[tokensPerBlock.length - 1];
         }
         uint256 stage = 0;
-        for (uint8 i = 0; i < bonusEndBlocks.length; i++) {
+        for (uint256 i = 0; i < bonusEndBlocks.length; i++) {
             uint256 actualEndBlock = startBlock.add(bonusEndBlocks[i]);
             if (bnum >= actualEndBlock) {
                 stage = stage.add(1);
