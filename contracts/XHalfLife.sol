@@ -3,12 +3,16 @@ pragma solidity 0.5.17;
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-import "./libs/Address.sol";
+import "./lib/Address.sol";
+import "./lib/XNum.sol";
 import "./interfaces/IERC20.sol";
 
 contract XHalfLife is ReentrancyGuard {
     using SafeMath for uint256;
     using AddressHelper for address;
+    //using XNum for uint256;
+
+    uint256 private constant ONE = 10**18;
 
     /**
      * @notice Counter for new stream ids.
@@ -27,7 +31,7 @@ contract XHalfLife is ReentrancyGuard {
         uint256 withdrawable; // withdrawable balance
         uint256 startBlock;
         uint256 kBlock;
-        uint256 unlockRatio; // must be between [1-1000], which means 0.1% to 1%
+        uint256 unlockRatio; // must be between [1-1000], which means 0.1% to 100%
         uint256 denom; // one readable coin represent
         uint256 lastRewardBlock;
         address token; // ERC20 token address or 0xEe for Ether
@@ -126,7 +130,7 @@ contract XHalfLife is ReentrancyGuard {
     )
         external
         createStreamPreflight(recipient, depositAmount, startBlock, kBlock)
-        returns (uint256)
+        returns (uint256 streamId)
     {
         require(unlockRatio <= 1000, "unlockRatio must <= 1000");
         require(unlockRatio > 0, "unlockRatio must > 0");
@@ -134,7 +138,7 @@ contract XHalfLife is ReentrancyGuard {
         require(token.isContract(), "not contract");
         token.safeTransferFrom(msg.sender, address(this), depositAmount);
 
-        uint256 streamId = nextStreamId;
+        streamId = nextStreamId;
         {
             uint256 denom = 10**uint256(IERC20(token).decimals());
             require(denom >= 10**6, "token decimal too small");
@@ -173,7 +177,6 @@ contract XHalfLife is ReentrancyGuard {
             kBlock,
             unlockRatio
         );
-        return streamId;
     }
 
     /**
@@ -200,13 +203,13 @@ contract XHalfLife is ReentrancyGuard {
         external
         payable
         createStreamPreflight(recipient, msg.value, startBlock, kBlock)
-        returns (uint256)
+        returns (uint256 streamId)
     {
         require(unlockRatio <= 1000, "unlockRatio must <= 1000");
         require(unlockRatio > 0, "unlockRatio must > 0");
 
         /* Create and store the stream object. */
-        uint256 streamId = nextStreamId;
+        streamId = nextStreamId;
         streams[streamId] = Stream({
             token: AddressHelper.ethAddress(),
             remaining: msg.value,
@@ -223,7 +226,6 @@ contract XHalfLife is ReentrancyGuard {
         });
 
         nextStreamId = nextStreamId.add(1);
-
         emit StreamCreated(
             streamId,
             msg.sender,
@@ -234,7 +236,6 @@ contract XHalfLife is ReentrancyGuard {
             kBlock,
             unlockRatio
         );
-        return streamId;
     }
 
     /**
@@ -344,17 +345,22 @@ contract XHalfLife is ReentrancyGuard {
         uint256 lastBalance = stream.withdrawable;
 
         //If `remaining` not equal zero, it means there have been added funds.
-        uint256 r = stream.remaining;
-        uint256 w = 0;
+        // uint256 r = stream.remaining;
+        // uint256 w = 0;
+        // uint256 n = block.number.sub(stream.lastRewardBlock).div(stream.kBlock);
+        // for (uint256 i = 0; i < n; i++) {
+        //     uint256 reward = r.mul(stream.unlockRatio).div(1000);
+        //     w = w.add(reward);
+        //     r = r.sub(reward);
+        //     if (r < effectiveValues[streamId]) {
+        //         break;
+        //     }
+        // }
         uint256 n = block.number.sub(stream.lastRewardBlock).div(stream.kBlock);
-        for (uint256 i = 0; i < n; i++) {
-            uint256 reward = r.mul(stream.unlockRatio).div(1000);
-            w = w.add(reward);
-            r = r.sub(reward);
-            if (r < effectiveValues[streamId]) {
-                break;
-            }
-        }
+        uint256 k = stream.unlockRatio.mul(ONE).div(1000); // k=0.001 For Standard HalfLife
+        uint256 mu = ONE.sub(k); // mu=0.999 For Standard HalfLife
+        uint256 r = stream.remaining.mul(XNum.bpow(mu, n * ONE)).div(ONE); // Same Result With Commented Lines
+        uint256 w = stream.remaining.sub(r); // withdrawable, if n is float this process will be smooth, slightly
 
         stream.remaining = r;
         stream.withdrawable = w;

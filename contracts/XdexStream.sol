@@ -6,7 +6,6 @@ import "./interfaces/IXHalfLife.sol";
 
 contract XdexStream is ReentrancyGuard {
     uint256 constant ONE = 10**18;
-    uint256 constant onePercent = 10**16;
 
     //The XDEX Token!
     address public xdex;
@@ -24,16 +23,16 @@ contract XdexStream is ReentrancyGuard {
         uint256 streamId;
     }
 
-    //unlock ratio for both Voting and Normal Pool
-    uint256 constant unlockRatio = onePercent / 10; //0.1%
+    //unlock ratio is 0.1% for both Voting and Normal Pool
+    uint256 constant unlockRatio = 1;
 
     //unlock k block for Voting Pool
-    uint256 constant unlockKBlocksV = 1800;
+    uint256 constant unlockKBlocksV = 540;
     // key: recipient, value: Locked Stream
     mapping(address => LockStream) private votingStreams;
 
     //funds for Normal Pool
-    uint256 constant unlockKBlocksN = 40;
+    uint256 constant unlockKBlocksN = 60;
     // key: recipient, value: Locked Stream
     mapping(address => LockStream) private normalStreams;
 

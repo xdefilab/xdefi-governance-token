@@ -178,7 +178,7 @@ contract FarmMaster is ReentrancyGuard {
 
     // Set the xdex stream proxy.
     function setStream(address _stream) external onlyCore {
-        emit SetStream(stream, _stream);
+        emit SetStream(address(stream), _stream);
         stream = XdexStream(_stream);
     }
 
@@ -196,7 +196,7 @@ contract FarmMaster is ReentrancyGuard {
         uint256 _lpFactor,
         bool _withUpdate
     ) public onlyCore {
-        require(poolInfo.length < PoolMaxCount, "MAX Pool Count Error")
+        require(poolInfo.length < PoolMaxCount, "MAX Pool Count Error");
         require(_lpFactor > 0, "Lp Token Factor is zero");
 
         if (_withUpdate) {
@@ -448,6 +448,11 @@ contract FarmMaster is ReentrancyGuard {
                     .sub(user.rewardDebt);
 
             if (pending > 0) {
+                //20% pending should unlock immediately
+                uint256 unlockAmount = pending / 5;
+                xdex.transfer(msg.sender, unlockAmount);
+                pending = pending.sub(unlockAmount);
+
                 //create the stream or add funds to stream
                 (bool hasVotingStream, bool hasNormalStream) =
                     stream.hasStream(msg.sender);
@@ -548,6 +553,11 @@ contract FarmMaster is ReentrancyGuard {
                 .sub(user.rewardDebt);
 
         if (pending > 0) {
+            //20% pending should unlock immediately
+            uint256 unlockAmount = pending / 5;
+            xdex.transfer(msg.sender, unlockAmount);
+            pending = pending.sub(unlockAmount);
+
             //create the stream or add funds to stream
             (bool hasVotingStream, bool hasNormalStream) =
                 stream.hasStream(msg.sender);
