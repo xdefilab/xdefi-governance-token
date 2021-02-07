@@ -3,13 +3,12 @@ pragma solidity 0.5.17;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 import "./XDEX.sol";
 import "./XdexStream.sol";
 
 // FarmMaster is the master of xDefi Farms.
-contract FarmMaster is ReentrancyGuard {
+contract FarmMaster {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
@@ -299,7 +298,7 @@ contract FarmMaster is ReentrancyGuard {
         IERC20 _lpToken,
         uint256 _lpFactor,
         bool _withUpdate
-    ) public nonReentrant onlyCore poolExists(_pid) {
+    ) public onlyCore poolExists(_pid) {
         if (_withUpdate) {
             massUpdatePools();
         }
@@ -431,7 +430,7 @@ contract FarmMaster is ReentrancyGuard {
         uint256 _pid,
         IERC20 _lpToken,
         uint256 _amount
-    ) external nonReentrant poolExists(_pid) {
+    ) external poolExists(_pid) {
         PoolInfo storage pool = poolInfo[_pid];
         uint256 index = _getLpIndexInPool(_pid, _lpToken);
         updatePool(_pid);
@@ -536,7 +535,7 @@ contract FarmMaster is ReentrancyGuard {
         uint256 _pid,
         IERC20 _lpToken,
         uint256 _amount
-    ) public nonReentrant poolExists(_pid) {
+    ) public poolExists(_pid) {
         PoolInfo storage pool = poolInfo[_pid];
         uint256 index = _getLpIndexInPool(_pid, _lpToken);
         updatePool(_pid);
@@ -603,11 +602,7 @@ contract FarmMaster is ReentrancyGuard {
     }
 
     // Withdraw without caring about rewards. EMERGENCY ONLY.
-    function emergencyWithdraw(uint256 _pid)
-        external
-        nonReentrant
-        poolExists(_pid)
-    {
+    function emergencyWithdraw(uint256 _pid) external poolExists(_pid) {
         PoolInfo storage pool = poolInfo[_pid];
 
         for (uint8 i = 0; i < pool.LpTokenInfos.length; i++) {
@@ -630,11 +625,7 @@ contract FarmMaster is ReentrancyGuard {
     }
 
     // Batch collect function in pool on frontend
-    function batchCollectReward(uint256 _pid)
-        external
-        nonReentrant
-        poolExists(_pid)
-    {
+    function batchCollectReward(uint256 _pid) external poolExists(_pid) {
         PoolInfo storage pool = poolInfo[_pid];
         uint256 length = pool.LpTokenInfos.length;
 
@@ -645,6 +636,25 @@ contract FarmMaster is ReentrancyGuard {
                 //collect
                 withdraw(_pid, lpToken, 0);
             }
+        }
+    }
+
+    // View function to see user lpToken amount in pool on frontend.
+    function getUserLpAmounts(uint256 _pid, address _user)
+        external
+        view
+        poolExists(_pid)
+        returns (address[] memory lpTokens, uint256[] memory amounts)
+    {
+        PoolInfo memory pool = poolInfo[_pid];
+        uint256 length = pool.LpTokenInfos.length;
+        lpTokens = new address[](length);
+        amounts = new uint256[](length);
+        for (uint256 i = 0; i < length; i++) {
+            lpTokens[i] = address(pool.LpTokenInfos[i].lpToken);
+            UserInfo memory user =
+                poolInfo[_pid].LpTokenInfos[i].userInfo[_user];
+            amounts[i] = user.amount;
         }
     }
 
