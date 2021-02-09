@@ -3,7 +3,7 @@ pragma solidity 0.5.17;
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-import "./lib/Address.sol";
+import "./lib/AddressHelper.sol";
 import "./lib/XNum.sol";
 import "./interfaces/IERC20.sol";
 

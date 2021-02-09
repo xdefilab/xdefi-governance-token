@@ -259,9 +259,7 @@ contract FarmMaster {
 
         //save lpToken index
         //The index in storage starts with 1, then need sub(1)
-        lpIndexInPool[keccak256(abi.encodePacked(_pid, _lpToken))] =
-            pool.LpTokenInfos.length +
-            1;
+        lpIndexInPool[keccak256(abi.encodePacked(_pid, _lpToken))] = count + 1;
 
         emit AddLP(_pid, address(_lpToken), _lpTokenType, _lpFactor);
     }
