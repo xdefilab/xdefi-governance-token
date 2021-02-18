@@ -3,17 +3,17 @@ pragma solidity 0.5.17;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 import "./XDEX.sol";
 import "./XdexStream.sol";
 
 // FarmMaster is the master of xDefi Farms.
-contract FarmMaster {
+contract FarmMaster is ReentrancyGuard {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
     uint256 private constant ONE = 10**18;
-    uint256 private constant onePercent = 10**16;
     uint256 private constant StreamTypeVoting = 0;
     uint256 private constant StreamTypeNormal = 1;
 
@@ -21,6 +21,8 @@ contract FarmMaster {
     uint256 private constant LpTokenMinCount = 1;
     uint256 private constant LpTokenMaxCount = 8;
     uint256 private constant PoolMaxCount = 64;
+
+    uint256 private constant LpRewardFixDec = 1e12;
 
     // Info of each user.
     struct UserInfo {
@@ -143,6 +145,7 @@ contract FarmMaster {
 
     event SetCore(address indexed _core, address indexed _coreNew);
     event SetStream(address indexed _stream, address indexed _streamNew);
+    event SetVotingPool(uint256 indexed _pid);
 
     /**
      * @dev Throws if the msg.sender unauthorized.
@@ -173,16 +176,19 @@ contract FarmMaster {
     // Set the voting pool id.
     function setVotingPool(uint256 _pid) external onlyCore {
         votingPoolId = _pid;
+        emit SetVotingPool(_pid);
     }
 
     // Set the xdex stream proxy.
     function setStream(address _stream) external onlyCore {
+        require(_stream != address(0), "ERR_ZERO_ADDRESS");
         emit SetStream(address(stream), _stream);
         stream = XdexStream(_stream);
     }
 
     // Set new core
     function setCore(address _core) external onlyCore {
+        require(_core != address(0), "ERR_ZERO_ADDRESS");
         emit SetCore(core, _core);
         core = _core;
     }
@@ -194,7 +200,7 @@ contract FarmMaster {
         uint256 _lpTokenType,
         uint256 _lpFactor,
         bool _withUpdate
-    ) public onlyCore {
+    ) external onlyCore {
         require(poolInfo.length < PoolMaxCount, "MAX Pool Count Error");
         require(_lpFactor > 0, "Lp Token Factor is zero");
 
@@ -354,7 +360,7 @@ contract FarmMaster {
             uint256 lpReward =
                 poolReward.mul(lpInfo.lpFactor).div(pool.poolFactor);
             pool.LpTokenInfos[i].lpAccPerShare = lpInfo.lpAccPerShare.add(
-                lpReward.mul(1e12).div(lpSupply)
+                lpReward.mul(LpRewardFixDec).div(lpSupply)
             );
         }
 
@@ -385,7 +391,7 @@ contract FarmMaster {
                     user
                         .amount
                         .mul(pool.LpTokenInfos[i].lpAccPerShare)
-                        .div(1e12)
+                        .div(LpRewardFixDec)
                         .sub(user.rewardDebt)
                 );
             }
@@ -408,13 +414,13 @@ contract FarmMaster {
                 uint256 lpReward =
                     poolReward.mul(lpInfo.lpFactor).div(pool.poolFactor);
                 lpInfo.lpAccPerShare = lpInfo.lpAccPerShare.add(
-                    lpReward.mul(1e12).div(lpSupply)
+                    lpReward.mul(LpRewardFixDec).div(lpSupply)
                 );
             }
             UserInfo memory user =
                 poolInfo[_pid].LpTokenInfos[i].userInfo[_user];
             totalPending = totalPending.add(
-                user.amount.mul(lpInfo.lpAccPerShare).div(1e12).sub(
+                user.amount.mul(lpInfo.lpAccPerShare).div(LpRewardFixDec).sub(
                     user.rewardDebt
                 )
             );
@@ -429,8 +435,12 @@ contract FarmMaster {
         IERC20 _lpToken,
         uint256 _amount
     ) external poolExists(_pid) {
+        require(_amount > 0, "not valid amount");
+
         PoolInfo storage pool = poolInfo[_pid];
         uint256 index = _getLpIndexInPool(_pid, _lpToken);
+        require(index < poolInfo[_pid].LpTokenInfos.length, "not valid index");
+
         updatePool(_pid);
 
         UserInfo storage user =
@@ -441,7 +451,7 @@ contract FarmMaster {
                 user
                     .amount
                     .mul(pool.LpTokenInfos[index].lpAccPerShare)
-                    .div(1e12)
+                    .div(LpRewardFixDec)
                     .sub(user.rewardDebt);
 
             if (pending > 0) {
@@ -488,7 +498,7 @@ contract FarmMaster {
 
             //create the stream for First Deposit Bonus
             if (_pid == votingPoolId) {
-                if (hasVotingStream == false) {
+                if (!hasVotingStream) {
                     xdex.mint(address(this), bonusFirstDeposit);
                     xdex.approve(address(stream), bonusFirstDeposit);
                     stream.createStream(
@@ -499,7 +509,7 @@ contract FarmMaster {
                     );
                 }
             } else {
-                if (hasNormalStream == false) {
+                if (!hasNormalStream) {
                     xdex.mint(address(this), bonusFirstDeposit);
                     xdex.approve(address(stream), bonusFirstDeposit);
                     stream.createStream(
@@ -512,19 +522,19 @@ contract FarmMaster {
             }
         }
 
-        if (_amount > 0) {
-            pool.LpTokenInfos[index].lpToken.safeTransferFrom(
-                address(msg.sender),
-                address(this),
-                _amount
-            );
-            user.amount = user.amount.add(_amount);
-        }
+        //if (_amount > 0) {
+        pool.LpTokenInfos[index].lpToken.safeTransferFrom(
+            address(msg.sender),
+            address(this),
+            _amount
+        );
+        user.amount = user.amount.add(_amount);
+        //}
 
         user.rewardDebt = user
             .amount
             .mul(pool.LpTokenInfos[index].lpAccPerShare)
-            .div(1e12);
+            .div(LpRewardFixDec);
 
         emit Deposit(msg.sender, _pid, address(_lpToken), _amount);
     }
@@ -536,6 +546,8 @@ contract FarmMaster {
     ) public poolExists(_pid) {
         PoolInfo storage pool = poolInfo[_pid];
         uint256 index = _getLpIndexInPool(_pid, _lpToken);
+        require(index < poolInfo[_pid].LpTokenInfos.length, "not valid index");
+
         updatePool(_pid);
 
         UserInfo storage user =
@@ -546,7 +558,7 @@ contract FarmMaster {
             user
                 .amount
                 .mul(pool.LpTokenInfos[index].lpAccPerShare)
-                .div(1e12)
+                .div(LpRewardFixDec)
                 .sub(user.rewardDebt);
 
         if (pending > 0) {
@@ -594,13 +606,17 @@ contract FarmMaster {
         user.rewardDebt = user
             .amount
             .mul(pool.LpTokenInfos[index].lpAccPerShare)
-            .div(1e12);
+            .div(LpRewardFixDec);
 
         emit Withdraw(msg.sender, _pid, address(_lpToken), _amount);
     }
 
     // Withdraw without caring about rewards. EMERGENCY ONLY.
-    function emergencyWithdraw(uint256 _pid) external poolExists(_pid) {
+    function emergencyWithdraw(uint256 _pid)
+        external
+        nonReentrant
+        poolExists(_pid)
+    {
         PoolInfo storage pool = poolInfo[_pid];
 
         for (uint8 i = 0; i < pool.LpTokenInfos.length; i++) {

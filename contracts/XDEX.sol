@@ -18,6 +18,7 @@ contract XDEX is ERC20, ERC20Detailed {
     }
 
     function setCore(address _core) public onlyCore {
+        require(_core != address(0), "ERR_ZERO_ADDRESS");
         emit SET_CORE(core, _core);
         core = _core;
     }

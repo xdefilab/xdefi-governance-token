@@ -10,9 +10,6 @@ import "./interfaces/IERC20.sol";
 contract XHalfLife is ReentrancyGuard {
     using SafeMath for uint256;
     using AddressHelper for address;
-    //using XNum for uint256;
-
-    uint256 private constant ONE = 10**18;
 
     /**
      * @notice Counter for new stream ids.
@@ -207,6 +204,7 @@ contract XHalfLife is ReentrancyGuard {
     {
         require(unlockRatio <= 1000, "unlockRatio must <= 1000");
         require(unlockRatio > 0, "unlockRatio must > 0");
+        require(msg.value >= 10**14, "deposit too small");
 
         /* Create and store the stream object. */
         streamId = nextStreamId;
