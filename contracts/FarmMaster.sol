@@ -75,9 +75,6 @@ contract FarmMaster is ReentrancyGuard {
     uint256 public constant bonusFirstDeposit = 10 * ONE;
 
     address public core;
-    // whitelist of claimable airdrop tokens
-    mapping(address => bool) public claimableTokens;
-
     // The XDEX TOKEN
     XDEX public xdex;
 
@@ -522,14 +519,12 @@ contract FarmMaster is ReentrancyGuard {
             }
         }
 
-        //if (_amount > 0) {
         pool.LpTokenInfos[index].lpToken.safeTransferFrom(
             address(msg.sender),
             address(this),
             _amount
         );
         user.amount = user.amount.add(_amount);
-        //}
 
         user.rewardDebt = user
             .amount
@@ -757,21 +752,6 @@ contract FarmMaster is ReentrancyGuard {
             "tokensPerBlock length not good"
         );
         return tokensPerBlock[stage];
-    }
-
-    // Any airdrop tokens (in whitelist) sent to this contract, should transfer to core
-    function claimRewards(address token, uint256 amount) external onlyCore {
-        require(claimableTokens[token], "not claimable token");
-
-        IERC20(token).safeTransfer(core, amount);
-        emit Claim(core, token, amount);
-    }
-
-    function updateClaimableTokens(address token, bool claimable)
-        external
-        onlyCore
-    {
-        claimableTokens[token] = claimable;
     }
 
     // The index in storage starts with 1, then need sub(1)

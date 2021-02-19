@@ -310,13 +310,6 @@ contract XHalfLife is ReentrancyGuard {
 
         (uint256 withdrawable, uint256 remaining) = balanceOf(streamId);
 
-        //uint256 m = block.number.sub(stream.startBlock).mod(stream.kBlock);
-        //uint256 lastRewardBlock = block.number; //.sub(m);
-
-        //stream.lastRewardBlock = lastRewardBlock;
-        //stream.remaining = remainingBalance.add(amount);
-        //stream.withdrawable = recipientBalance;
-
         uint256 blockHeightDiff = block.number.sub(stream.lastRewardBlock);
         uint256 m = amount.mul(stream.kBlock).div(blockHeightDiff); // If underflow m might be 0
         uint256 noverk = ONE * blockHeightDiff.div(stream.kBlock); // decimal
