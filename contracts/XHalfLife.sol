@@ -11,6 +11,8 @@ contract XHalfLife is ReentrancyGuard {
     using SafeMath for uint256;
     using AddressHelper for address;
 
+    uint256 private constant ONE = 10**18;
+
     /**
      * @notice Counter for new stream ids.
      */
@@ -306,14 +308,27 @@ contract XHalfLife is ReentrancyGuard {
             stream.token.safeTransferFrom(msg.sender, address(this), amount);
         }
 
-        (uint256 recipientBalance, uint256 remainingBalance) =
-            balanceOf(streamId);
-        uint256 m = block.number.sub(stream.startBlock).mod(stream.kBlock);
-        uint256 lastRewardBlock = block.number.sub(m);
+        (uint256 withdrawable, uint256 remaining) = balanceOf(streamId);
 
-        stream.lastRewardBlock = lastRewardBlock;
-        stream.remaining = remainingBalance.add(amount);
-        stream.withdrawable = recipientBalance;
+        //uint256 m = block.number.sub(stream.startBlock).mod(stream.kBlock);
+        //uint256 lastRewardBlock = block.number; //.sub(m);
+
+        //stream.lastRewardBlock = lastRewardBlock;
+        //stream.remaining = remainingBalance.add(amount);
+        //stream.withdrawable = recipientBalance;
+
+        uint256 blockHeightDiff = block.number.sub(stream.lastRewardBlock);
+        uint256 m = amount.mul(stream.kBlock).div(blockHeightDiff); // If underflow m might be 0
+        uint256 noverk = ONE * blockHeightDiff.div(stream.kBlock); // decimal
+        uint256 mu = ONE * stream.unlockRatio.div(1000); // decimal
+        uint256 onesubmu = ONE.sub(mu);
+        // uint256 s = m.mul(ONE.sub(XNum.bpow(onesubmu,noverk))).div(ONE).div(mu).mul(ONE);
+        uint256 s = m.mul(ONE.sub(XNum.bpow(onesubmu, noverk))).div(mu);
+
+        // update remaining and withdrawable balance
+        stream.remaining = remaining.add(amount).sub(s);
+        stream.withdrawable = withdrawable.add(s);
+        stream.lastRewardBlock = block.number;
 
         //add funds to total deposit amount
         stream.depositAmount = stream.depositAmount.add(amount);
@@ -354,10 +369,13 @@ contract XHalfLife is ReentrancyGuard {
         //         break;
         //     }
         // }
-        uint256 n = block.number.sub(stream.lastRewardBlock).div(stream.kBlock);
+        uint256 n =
+            block.number.sub(stream.lastRewardBlock).mul(ONE).div(
+                stream.kBlock
+            );
         uint256 k = stream.unlockRatio.mul(ONE).div(1000); // k=0.001 For Standard HalfLife
         uint256 mu = ONE.sub(k); // mu=0.999 For Standard HalfLife
-        uint256 r = stream.remaining.mul(XNum.bpow(mu, n * ONE)).div(ONE); // Same Result With Commented Lines
+        uint256 r = stream.remaining.mul(XNum.bpow(mu, n)).div(ONE); // Same Result With Commented Lines
         uint256 w = stream.remaining.sub(r); // withdrawable, if n is float this process will be smooth, slightly
 
         stream.remaining = r;
@@ -413,11 +431,10 @@ contract XHalfLife is ReentrancyGuard {
             "amount is zero or not effective"
         );
 
-        (uint256 recipientBalance, uint256 remainingBalance) =
-            balanceOf(streamId);
+        (uint256 withdrawable, uint256 remaining) = balanceOf(streamId);
 
         require(
-            recipientBalance >= amount,
+            withdrawable >= amount,
             "withdraw amount exceeds the available balance"
         );
 
@@ -427,12 +444,9 @@ contract XHalfLife is ReentrancyGuard {
             stream.token.safeTransfer(stream.recipient, amount);
         }
 
-        uint256 m = block.number.sub(stream.startBlock).mod(stream.kBlock);
-        uint256 lastRewardBlock = block.number.sub(m);
-
-        stream.lastRewardBlock = lastRewardBlock;
-        stream.remaining = remainingBalance;
-        stream.withdrawable = recipientBalance.sub(amount);
+        stream.lastRewardBlock = block.number;
+        stream.remaining = remaining;
+        stream.withdrawable = withdrawable.sub(amount);
 
         emit WithdrawFromStream(streamId, stream.recipient, amount);
         return true;
