@@ -239,6 +239,15 @@ contract XHalfLife is ReentrancyGuard {
     }
 
     /**
+     * @notice Check if given stream exists.
+     * @param streamId The id of the stream to query.
+     * @return bool true=exists, otherwise false.
+     */
+    function hasStream(uint256 streamId) external view returns (bool) {
+        return streams[streamId].isEntity;
+    }
+
+    /**
      * @notice Returns the stream with all its properties.
      * @dev Throws if the id does not point to a valid stream.
      * @param streamId The id of the stream to query.
@@ -290,7 +299,7 @@ contract XHalfLife is ReentrancyGuard {
      * @param amount deposit amount by stream sender
      */
     function fundStream(uint256 streamId, uint256 amount)
-        public
+        external
         payable
         nonReentrant
         streamExists(streamId)
@@ -312,16 +321,17 @@ contract XHalfLife is ReentrancyGuard {
 
         uint256 blockHeightDiff = block.number.sub(stream.lastRewardBlock);
         uint256 m = amount.mul(stream.kBlock).div(blockHeightDiff); // If underflow m might be 0
-        uint256 noverk = ONE * blockHeightDiff.div(stream.kBlock); // decimal
-        uint256 mu = ONE * stream.unlockRatio.div(1000); // decimal
+        uint256 noverk = blockHeightDiff.mul(ONE).div(stream.kBlock); // decimal
+        uint256 mu = stream.unlockRatio.mul(ONE).div(1000); // decimal
         uint256 onesubmu = ONE.sub(mu);
         // uint256 s = m.mul(ONE.sub(XNum.bpow(onesubmu,noverk))).div(ONE).div(mu).mul(ONE);
         uint256 s = m.mul(ONE.sub(XNum.bpow(onesubmu, noverk))).div(mu);
+        s = s.sub(amount);
 
         // update remaining and withdrawable balance
+        stream.lastRewardBlock = block.number;
         stream.remaining = remaining.add(amount).sub(s);
         stream.withdrawable = withdrawable.add(s);
-        stream.lastRewardBlock = block.number;
 
         //add funds to total deposit amount
         stream.depositAmount = stream.depositAmount.add(amount);
@@ -350,47 +360,33 @@ contract XHalfLife is ReentrancyGuard {
 
         uint256 lastBalance = stream.withdrawable;
 
-        //If `remaining` not equal zero, it means there have been added funds.
-        // uint256 r = stream.remaining;
-        // uint256 w = 0;
-        // uint256 n = block.number.sub(stream.lastRewardBlock).div(stream.kBlock);
-        // for (uint256 i = 0; i < n; i++) {
-        //     uint256 reward = r.mul(stream.unlockRatio).div(1000);
-        //     w = w.add(reward);
-        //     r = r.sub(reward);
-        //     if (r < effectiveValues[streamId]) {
-        //         break;
-        //     }
-        // }
         uint256 n =
             block.number.sub(stream.lastRewardBlock).mul(ONE).div(
                 stream.kBlock
             );
-        uint256 k = stream.unlockRatio.mul(ONE).div(1000); // k=0.001 For Standard HalfLife
-        uint256 mu = ONE.sub(k); // mu=0.999 For Standard HalfLife
-        uint256 r = stream.remaining.mul(XNum.bpow(mu, n)).div(ONE); // Same Result With Commented Lines
-        uint256 w = stream.remaining.sub(r); // withdrawable, if n is float this process will be smooth, slightly
+        uint256 k = stream.unlockRatio.mul(ONE).div(1000);
+        uint256 mu = ONE.sub(k);
+        uint256 r = stream.remaining.mul(XNum.bpow(mu, n)).div(ONE);
+        uint256 w = stream.remaining.sub(r); // withdrawable, if n is float this process will be smooth and slightly
 
-        stream.remaining = r;
-        stream.withdrawable = w;
         if (lastBalance > 0) {
-            stream.withdrawable = stream.withdrawable.add(lastBalance);
+            w = w.add(lastBalance);
         }
 
         //If `remaining` + `withdrawable` < `depositAmount`, it means there have withdraws.
         require(
-            stream.remaining.add(stream.withdrawable) <= stream.depositAmount,
+            r.add(w) <= stream.depositAmount,
             "balanceOf: remaining or withdrawable amount is bad"
         );
 
-        if (stream.withdrawable >= effectiveValues[streamId]) {
-            withdrawable = stream.withdrawable;
+        if (w >= effectiveValues[streamId]) {
+            withdrawable = w;
         } else {
             withdrawable = 0;
         }
 
-        if (stream.remaining >= effectiveValues[streamId]) {
-            remaining = stream.remaining;
+        if (r >= effectiveValues[streamId]) {
+            remaining = r;
         } else {
             remaining = 0;
         }
@@ -470,6 +466,7 @@ contract XHalfLife is ReentrancyGuard {
 
         //save gas
         delete streams[streamId];
+        delete effectiveValues[streamId];
 
         if (withdrawable > 0) {
             if (stream.token == AddressHelper.ethAddress()) {

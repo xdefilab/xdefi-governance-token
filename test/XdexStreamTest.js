@@ -8,15 +8,7 @@ const ONE = 10 ** 18;
 const StreamTypeVoting = 0;
 const StreamTypeNormal = 1;
 
-/**
- * Roles:
- *  alice -> halflife core
- *        -> funded to all streams
- *  bob -> voting & normal stream
- *  carol -> voting & nromal stream
- */
-
-contract('XStream', ([alice, bob, carol, minter]) => {
+contract('XStream', ([alice, bob, minter]) => {
     beforeEach(async () => {
         this.xdex = await XDEX.new({ from: alice });
         this.halflife = await XHalflife.new(this.xdex.address, { from: minter });
@@ -40,18 +32,18 @@ contract('XStream', ([alice, bob, carol, minter]) => {
             //should create voting stream
             let result = await this.stream.createStream(bob, deposit, StreamTypeVoting, '40', { from: alice });
 
-            //emits a Create event
-            truffleAssert.eventEmitted(result, "Create");
+            let streamId = await this.stream.getStreamId(bob, StreamTypeVoting);
 
-            let stream = await this.halflife.getStream(Number(result.logs[0].args.streamId));
+            let stream = await this.halflife.getStream(streamId);
             assert.equal(stream.sender, this.stream.address);
             assert.equal(stream.recipient, bob);
             assert.equal(stream.depositAmount.toString(), deposit);
             assert.equal(stream.startBlock, '40');
-            assert.equal(stream.kBlock.toString(), '1800');
+            assert.equal(stream.kBlock.toString(), '540');
             assert.equal(stream.remaining.toString(), deposit);
             assert.equal(stream.withdrawable, '0');
             assert.equal(stream.lastRewardBlock, '40');
+            assert.equal(stream.unlockRatio, '1');
 
             //token transfered to the halflife contract
             let balance = (await this.xdex.balanceOf(this.halflife.address)).toString();
@@ -61,19 +53,18 @@ contract('XStream', ([alice, bob, carol, minter]) => {
             await time.advanceBlockTo('30');
             //should create normal stream
             result = await this.stream.createStream(bob, deposit, StreamTypeNormal, '40', { from: alice });
+            streamId = await this.stream.getStreamId(bob, StreamTypeNormal);
 
-            //emits a Create event
-            truffleAssert.eventEmitted(result, "Create");
-
-            stream = await this.halflife.getStream(Number(result.logs[0].args.streamId));
+            stream = await this.halflife.getStream(streamId);
             assert.equal(stream.sender, this.stream.address);
             assert.equal(stream.recipient, bob);
             assert.equal(stream.depositAmount, deposit);
             assert.equal(stream.startBlock, '40');
-            assert.equal(stream.kBlock, '40');
+            assert.equal(stream.kBlock, '60');
             assert.equal(stream.remaining, deposit);
             assert.equal(stream.withdrawable, '0');
             assert.equal(stream.lastRewardBlock, '40');
+            assert.equal(stream.unlockRatio, '1');
 
             //token transfered to the halflife contract
             balance = (await this.xdex.balanceOf(this.halflife.address)).toString();
@@ -82,8 +73,24 @@ contract('XStream', ([alice, bob, carol, minter]) => {
 
             //could withdraw from normalStream
             await time.advanceBlockTo('85');
-            let withdrawable = (await this.halflife.balanceOf('2')).withdrawable.toString();
-            assert.equal(withdrawable, '30000000000000000000');
+            let withdrawable = (await this.halflife.balanceOf(streamId)).withdrawable.toString();
+            assert.equal(withdrawable, '22502813671875000000');
+
+            await time.advanceBlockTo('110');
+            withdrawable = (await this.halflife.balanceOf(streamId)).withdrawable.toString();
+            assert.equal(withdrawable, '34997082521875050000');//35.0
+
+            await time.advanceBlockTo('120');
+            //bob withdraw 15 from stream
+            await this.halflife.withdrawFromStream(streamId, '15000000000000000000', { from: bob });// block 121
+            assert.equal((await this.xdex.balanceOf(bob)).toString(), '15000000000000000000');
+
+            withdrawable = (await this.halflife.balanceOf(streamId)).withdrawable.toString();
+            assert.equal(withdrawable, '25492910962498110000');//40.0 - 15.0 = 25.0
+
+            await time.advanceBlockTo('160');
+            withdrawable = (await this.halflife.balanceOf(streamId)).withdrawable.toString();
+            assert.equal(withdrawable, '44969999997856133365');//25.0 + 20.0  
         });
 
         it('should send funds to the stream', async () => {
@@ -95,39 +102,45 @@ contract('XStream', ([alice, bob, carol, minter]) => {
             assert.equal((await this.xdex.balanceOf(alice)).toString(), '97000000000000000000000');
             assert.equal((await this.xdex.balanceOf(bob)).toString(), '0');
 
+            let streamId = await this.stream.getStreamId(bob, StreamTypeNormal);
+
+            //could withdraw from normalStream
             await time.advanceBlockTo('240');
-            //bob withdraw 1.5 from stream
-            //await this.stream.withdraw(StreamTypeNormal, '1500000000000000000', { from: bob });// block 156
-            //assert.equal((await this.xdex.balanceOf(bob)).toString(), '1500000000000000000');
+            withdrawable = (await this.halflife.balanceOf(streamId)).withdrawable.toString();
+            assert.equal(withdrawable, '2000333481481482000');//2.0  
 
             await time.advanceBlockTo('249');
             //alice fund '1000' to the stream
-            result = await this.stream.fundsToStream(Number(result.logs[0].args.streamId), '1000000000000000000000', { from: alice });
+            result = await this.stream.fundsToStream(streamId, '1000000000000000000000', { from: alice });
+            withdrawable = (await this.halflife.balanceOf(streamId)).withdrawable.toString();
+            let remaining = (await this.halflife.balanceOf(streamId)).remaining.toString();
+            //console.log("streamId:" + streamId.toString() + ", remaining:" + remaining.toString() + ", withdrawable:" + withdrawable.toString());
+            assert.equal(withdrawable, '2583574155093053000');//2.50 + 0.08 = 2.58
+            assert.equal(remaining, '3997416425844906947000');//2997.5 + 1000.0 - 0.08 = 3997.42
+
+            let stream = await this.halflife.getStream(streamId);
+            assert.equal(stream.depositAmount, '4000000000000000000000');
+            assert.equal(stream.lastRewardBlock, '250');
 
             //alice balance = 100 - 3 - 1 = 96
             assert.equal((await this.xdex.balanceOf(alice)).toString(), '96000000000000000000000');
 
-            //emits a Fund event
-            truffleAssert.eventEmitted(result, "Fund");
-
             await time.advanceBlockTo('255');
-            let remaining = (await this.halflife.balanceOf('1')).remaining.toString();
-            let withdrawable = (await this.halflife.balanceOf('1')).withdrawable.toString();
-            //remaining = 3000 - 3 + 1000 = 3997, withdrawable = 3 - 1.5 = 1.5
-            assert.equal(remaining, '3997000000000000000000');
-            assert.equal(withdrawable, '1500000000000000000');
+            remaining = (await this.halflife.balanceOf(streamId)).remaining.toString();
+            withdrawable = (await this.halflife.balanceOf(streamId)).withdrawable.toString();
+            assert.equal(remaining, '3997083155032775292681');//3997.08
+            assert.equal(withdrawable, '2916844967224707319');//2.92
 
             //bob withdraw 0.2 from stream
-            //await this.stream.withdraw(StreamTypeNormal, '200000000000000000', { from: bob });
-            //assert.equal((await this.xdex.balanceOf(bob)).toString(), '1700000000000000000');
+            await time.advanceBlockTo('269');
+            await this.halflife.withdrawFromStream(streamId, '200000000000000000', { from: bob });// block 270
+            assert.equal((await this.xdex.balanceOf(bob)).toString(), '200000000000000000');
 
-            await time.advanceBlockTo('290');
-            //remaining = 3997 - 3.997 = 3993.003
-            remaining = (await this.halflife.balanceOf('1')).remaining.toString();
-            //withdrawable = 1.5 + 3.997 = 5.497
-            withdrawable = (await this.halflife.balanceOf('1')).withdrawable.toString();
-            assert.equal(remaining, '3993003000000000000000');
-            assert.equal(withdrawable, '5297000000000000000');
+            stream = await this.halflife.getStream(streamId);
+            assert.equal(stream.depositAmount, '4000000000000000000000');
+            assert.equal(stream.lastRewardBlock, '270');
+            assert.equal(stream.remaining.toString(), '3996083509298823896912');//3996.08
+            assert.equal(stream.withdrawable.toString(), '3716490701176103088');//3.71
         });
     });
 });

@@ -13,7 +13,6 @@ contract("XHalflife", ([alice, bob, carol, minter]) => {
     it("should set correct state variables", async () => {
         const xdexCore = await this.xdex.core();
         assert.equal(xdexCore, alice);
-        //await this.xdex.setCore(alice, { from: minter });
     });
 
     context("should create streams successfully", async () => {
