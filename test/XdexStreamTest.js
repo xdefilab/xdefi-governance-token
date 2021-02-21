@@ -114,7 +114,6 @@ contract('XStream', ([alice, bob, minter]) => {
             result = await this.stream.fundsToStream(streamId, '1000000000000000000000', { from: alice });
             withdrawable = (await this.halflife.balanceOf(streamId)).withdrawable.toString();
             let remaining = (await this.halflife.balanceOf(streamId)).remaining.toString();
-            //console.log("streamId:" + streamId.toString() + ", remaining:" + remaining.toString() + ", withdrawable:" + withdrawable.toString());
             assert.equal(withdrawable, '2583574155093053000');//2.50 + 0.08 = 2.58
             assert.equal(remaining, '3997416425844906947000');//2997.5 + 1000.0 - 0.08 = 3997.42
 
