@@ -13,7 +13,6 @@ contract("XHalflife", ([alice, bob, carol, minter]) => {
     it("should set correct state variables", async () => {
         const xdexCore = await this.xdex.core();
         assert.equal(xdexCore, alice);
-        //await this.xdex.setCore(alice, { from: minter });
     });
 
     context("should create streams successfully", async () => {
@@ -37,7 +36,7 @@ contract("XHalflife", ([alice, bob, carol, minter]) => {
         });
 
         it("the sender should have enough tokens", async () => {
-            const unlockRatio = "100000000000000000"; //0.1
+            const unlockRatio = "100"; //0.1
             await this.xdex.approve(this.halflife.address, "3000", { from: alice });
             await truffleAssert.reverts(
                 this.halflife.createStream(
@@ -54,7 +53,7 @@ contract("XHalflife", ([alice, bob, carol, minter]) => {
         });
 
         it("the recipient should not be the caller itself", async () => {
-            const unlockRatio = "100000000000000000"; //0.1
+            const unlockRatio = "100"; //0.1
             await truffleAssert.reverts(
                 this.halflife.createStream(
                     this.xdex.address,
@@ -71,7 +70,7 @@ contract("XHalflife", ([alice, bob, carol, minter]) => {
 
         it("the recipient should not be the 0 address", async () => {
             const recipient = "0x0000000000000000000000000000000000000000";
-            const unlockRatio = "100000000000000000"; //0.1
+            const unlockRatio = "100"; //0.1
             await truffleAssert.reverts(
                 this.halflife.createStream(
                     this.xdex.address,
@@ -89,7 +88,7 @@ contract("XHalflife", ([alice, bob, carol, minter]) => {
         });
 
         it("the recipient should not be the halflife contract itself", async () => {
-            const unlockRatio = "100000000000000000"; //0.1
+            const unlockRatio = "100"; //0.1
             await truffleAssert.reverts(
                 this.halflife.createStream(
                     this.xdex.address,
@@ -132,7 +131,7 @@ contract("XHalflife", ([alice, bob, carol, minter]) => {
 
             let startBlock = 50;
             let kBlock = 10;
-            const unlockRatio = "100000000000000000"; //0.1
+            const unlockRatio = "100"; //0.1
             let result = await this.halflife.createStream(
                 this.xdex.address,
                 bob,
@@ -178,12 +177,12 @@ contract("XHalflife", ([alice, bob, carol, minter]) => {
             let withdrawable = (
                 await this.halflife.balanceOf("1")
             ).withdrawable.toString();
-            assert.equal(withdrawable, "40951000000000000000");
+            assert.equal(withdrawable, "43981199933355268200");//44.0
         });
 
         it("should return balance of the stream", async () => {
             let deposit = 100 * ONE;
-            const unlockRatio = "100000000000000000"; //0.1
+            const unlockRatio = "100"; //0.1
             await this.xdex.approve(this.halflife.address, deposit.toString(), {
                 from: alice,
             });
@@ -236,7 +235,7 @@ contract("XHalflife", ([alice, bob, carol, minter]) => {
 
         it("should withdraw from the stream", async () => {
             let deposit = 100 * ONE;
-            const unlockRatio = "800000000000000000"; //0.8
+            const unlockRatio = "800"; //0.8
 
             await this.xdex.approve(this.halflife.address, deposit.toString(), {
                 from: alice,
@@ -285,7 +284,7 @@ contract("XHalflife", ([alice, bob, carol, minter]) => {
 
             assert.equal(
                 (await this.halflife.balanceOf("1")).withdrawable.toString(),
-                "75000000000000000000"
+                "77973201542924783600"
             );
 
             //remainingBalance should be zero when withdrawn in full
@@ -300,7 +299,7 @@ contract("XHalflife", ([alice, bob, carol, minter]) => {
             );
             assert.equal(
                 (await this.halflife.balanceOf("1")).withdrawable.toString(),
-                "4999948800000000000"
+                "4999956411395949888"
             ); //4.9999
         });
 
@@ -311,7 +310,7 @@ contract("XHalflife", ([alice, bob, carol, minter]) => {
             );
 
             let deposit = 100 * ONE;
-            const unlockRatio = "200000000000000000"; //0.2
+            const unlockRatio = "200"; //0.2
 
             await time.advanceBlockTo("299");
             await this.xdex.approve(this.halflife.address, deposit.toString(), {
@@ -352,7 +351,7 @@ contract("XHalflife", ([alice, bob, carol, minter]) => {
 
         it("should fund to stream", async () => {
             let deposit = 100 * ONE;
-            const unlockRatio = "800000000000000000"; //0.8
+            const unlockRatio = "800"; //0.8
 
             await time.advanceBlockTo("399");
             await this.xdex.approve(this.halflife.address, "200000000000000000000", {
@@ -374,26 +373,28 @@ contract("XHalflife", ([alice, bob, carol, minter]) => {
             assert.equal((await this.xdex.balanceOf(bob)).toString(), "0");
 
             await time.advanceBlockTo("419");
+            //fund 10
             await this.halflife.fundStream("1", "10000000000000000000", {
                 from: alice,
             });
 
-            //the remaing amount should be: (deposit - unlocked + fund) = 100 - 100*(0.8^1) + 10 = 30
+            //the remaing amount should be: 30
             assert.equal(
                 (await this.halflife.balanceOf("1")).remaining.toString(),
                 "30000000000000000000"
             );
-            //bob's withdrawable amount: 100*(0.8^1) = 80
+            //bob's withdrawable amount: 80
             assert.equal(
                 (await this.halflife.balanceOf("1")).withdrawable.toString(),
                 "80000000000000000000"
             );
 
             await time.advanceBlockTo("424");
+            //fund 80
             await this.halflife.fundStream("1", "80000000000000000000", {
                 from: alice,
             });
-            //alice balance = 200 - 100 - 10 - 80 = 10
+            //alice balance should be 200 - 100 - 10 - 80 = 10
             assert.equal(
                 (await this.xdex.balanceOf(alice)).toString(),
                 "10000000000000000000"
@@ -401,41 +402,45 @@ contract("XHalflife", ([alice, bob, carol, minter]) => {
 
             assert.equal(
                 (await this.halflife.balanceOf("1")).withdrawable.toString(),
-                "80000000000000000000"
+                "127140872968533847440"
             );
             assert.equal(
                 (await this.halflife.balanceOf("1")).remaining.toString(),
-                "110000000000000000000"
+                "62859127031466152560"
             );
 
             await time.advanceBlockTo("430");
             assert.equal(
                 (await this.halflife.balanceOf("1")).withdrawable.toString(),
-                "168000000000000000000"
+                "161888543772101544073"
             );
             assert.equal(
                 (await this.halflife.balanceOf("1")).remaining.toString(),
-                "22000000000000000000"
+                "28111456227898455927"
             );
 
-            await time.advanceBlockTo("440");
+            await time.advanceBlockTo("439");
+            //block 440, withdraw 2
             await this.halflife.withdrawFromStream("1", "2000000000000000000", {
                 from: bob,
             });
+
+            await time.advanceBlockTo("441");
             assert.equal(
                 (await this.xdex.balanceOf(bob)).toString(),
                 "2000000000000000000"
             );
             assert.equal(
                 (await this.halflife.balanceOf("1")).withdrawable.toString(),
-                "183600000000000000000"
-            ); //183.6
+                "183213519004726810911"
+            );
             assert.equal(
                 (await this.halflife.balanceOf("1")).remaining.toString(),
-                "4400000000000000000"
+                "4786480995273189089"
             );
 
-            await time.advanceBlockTo("455");
+            await time.advanceBlockTo("454");
+            //block 455, fund 3
             await this.halflife.fundStream("1", "3000000000000000000", {
                 from: alice,
             });
@@ -445,16 +450,16 @@ contract("XHalflife", ([alice, bob, carol, minter]) => {
                 "7000000000000000000"
             );
             let stream = await this.halflife.getStream("1");
-            assert.equal(stream.lastRewardBlock.toString(), "450");
-            assert.equal(stream.depositAmount.toString(), "193000000000000000000"); //100 + 10 + 80 + 3 = 193
+            assert.equal(stream.lastRewardBlock.toString(), "455");
+            assert.equal(stream.depositAmount.toString(), "193000000000000000000");
             assert.equal(
                 (await this.halflife.balanceOf("1")).withdrawable.toString(),
-                "187120000000000000000"
+                "186773520185203785311"
             );
             assert.equal(
                 (await this.halflife.balanceOf("1")).remaining.toString(),
-                "3880000000000000000"
-            ); //3.88
+                "4226479814796214689"
+            );
         });
     });
 });

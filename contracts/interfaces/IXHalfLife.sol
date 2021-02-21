@@ -17,6 +17,8 @@ interface IXHalfLife {
         uint256 unlockRatio
     ) external payable returns (uint256);
 
+    function hasStream(uint256 streamId) external view returns (bool);
+
     function getStream(uint256 streamId)
         external
         view
