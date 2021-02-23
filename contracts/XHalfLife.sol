@@ -28,14 +28,15 @@ contract XHalfLife is ReentrancyGuard {
         uint256 depositAmount; // total deposited amount, must >= 0.0001 TOKEN
         uint256 remaining; // un-withdrawable balance
         uint256 withdrawable; // withdrawable balance
-        uint256 startBlock;
-        uint256 kBlock;
+        uint256 startBlock; // when should start
+        uint256 kBlock; // interval K blocks
         uint256 unlockRatio; // must be between [1-1000], which means 0.1% to 100%
         uint256 denom; // one readable coin represent
-        uint256 lastRewardBlock;
+        uint256 lastRewardBlock; // update by create(), fund() and withdraw()
         address token; // ERC20 token address or 0xEe for Ether
         address recipient;
         address sender;
+        bool cancelable; // can be cancelled or not
         bool isEntity;
     }
 
@@ -67,7 +68,7 @@ contract XHalfLife is ReentrancyGuard {
         require(recipient != address(0), "stream to the zero address");
         require(recipient != address(this), "stream to the contract itself");
         require(recipient != msg.sender, "stream to the caller");
-        require(depositAmount > 0, "depositAmount is zero");
+        require(depositAmount > 0, "deposit amount is zero");
         require(startBlock >= block.number, "start block before block.number");
         require(kBlock > 0, "k block is zero");
         _;
@@ -81,7 +82,8 @@ contract XHalfLife is ReentrancyGuard {
         uint256 depositAmount,
         uint256 startBlock,
         uint256 kBlock,
-        uint256 unlockRatio
+        uint256 unlockRatio,
+        bool cancelable
     );
 
     event WithdrawFromStream(
@@ -117,6 +119,7 @@ contract XHalfLife is ReentrancyGuard {
      * @param kBlock unlock every k blocks
      * @param unlockRatio unlock ratio from remaining balance,
      *                    value must be between [1-1000], which means 0.1% to 1%
+     * @param cancelable can be cancelled or not
      * @return The uint256 id of the newly created stream.
      */
     function createStream(
@@ -125,7 +128,8 @@ contract XHalfLife is ReentrancyGuard {
         uint256 depositAmount,
         uint256 startBlock,
         uint256 kBlock,
-        uint256 unlockRatio
+        uint256 unlockRatio,
+        bool cancelable
     )
         external
         createStreamPreflight(recipient, depositAmount, startBlock, kBlock)
@@ -161,7 +165,8 @@ contract XHalfLife is ReentrancyGuard {
                 lastRewardBlock: startBlock,
                 recipient: recipient,
                 sender: msg.sender,
-                isEntity: true
+                isEntity: true,
+                cancelable: cancelable
             });
         }
 
@@ -174,7 +179,8 @@ contract XHalfLife is ReentrancyGuard {
             depositAmount,
             startBlock,
             kBlock,
-            unlockRatio
+            unlockRatio,
+            cancelable
         );
     }
 
@@ -191,13 +197,15 @@ contract XHalfLife is ReentrancyGuard {
      * @param startBlock stream start block
      * @param kBlock unlock every k blocks
      * @param unlockRatio unlock ratio from remaining balance
+     * @param cancelable can be cancelled or not
      * @return The uint256 id of the newly created stream.
      */
     function createEtherStream(
         address recipient,
         uint256 startBlock,
         uint256 kBlock,
-        uint256 unlockRatio
+        uint256 unlockRatio,
+        bool cancelable
     )
         external
         payable
@@ -222,7 +230,8 @@ contract XHalfLife is ReentrancyGuard {
             lastRewardBlock: startBlock,
             recipient: recipient,
             sender: msg.sender,
-            isEntity: true
+            isEntity: true,
+            cancelable: cancelable
         });
 
         nextStreamId = nextStreamId.add(1);
@@ -234,7 +243,8 @@ contract XHalfLife is ReentrancyGuard {
             msg.value,
             startBlock,
             kBlock,
-            unlockRatio
+            unlockRatio,
+            cancelable
         );
     }
 
@@ -261,6 +271,7 @@ contract XHalfLife is ReentrancyGuard {
      * @return withdrawable
      * @return unlockRatio
      * @return lastRewardBlock
+     * @return cancelable
      */
     function getStream(uint256 streamId)
         external
@@ -276,7 +287,8 @@ contract XHalfLife is ReentrancyGuard {
             uint256 remaining,
             uint256 withdrawable,
             uint256 unlockRatio,
-            uint256 lastRewardBlock
+            uint256 lastRewardBlock,
+            bool cancelable
         )
     {
         Stream memory stream = streams[streamId];
@@ -290,6 +302,7 @@ contract XHalfLife is ReentrancyGuard {
         withdrawable = stream.withdrawable;
         unlockRatio = stream.unlockRatio;
         lastRewardBlock = stream.lastRewardBlock;
+        cancelable = stream.cancelable;
     }
 
     /**
@@ -455,13 +468,15 @@ contract XHalfLife is ReentrancyGuard {
         returns (bool)
     {
         Stream memory stream = streams[streamId];
-        (uint256 withdrawable, uint256 remaining) = balanceOf(streamId);
 
+        require(stream.cancelable, "non cancelable stream");
         require(
             msg.sender == streams[streamId].sender ||
                 msg.sender == streams[streamId].recipient,
-            "caller is not the sender or the recipient of the stream"
+            "caller must be the sender or the recipient"
         );
+
+        (uint256 withdrawable, uint256 remaining) = balanceOf(streamId);
 
         //save gas
         delete streams[streamId];
