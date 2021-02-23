@@ -24,17 +24,20 @@ contract XdexStream is ReentrancyGuard {
     }
 
     //unlock ratio is 0.1% for both Voting and Normal Pool
-    uint256 constant unlockRatio = 1;
+    uint256 private constant unlockRatio = 1;
 
     //unlock k block for Voting Pool
-    uint256 constant unlockKBlocksV = 540;
+    uint256 private constant unlockKBlocksV = 540;
     // key: recipient, value: Locked Stream
     mapping(address => LockStream) private votingStreams;
 
     //funds for Normal Pool
-    uint256 constant unlockKBlocksN = 60;
+    uint256 private constant unlockKBlocksN = 60;
     // key: recipient, value: Locked Stream
     mapping(address => LockStream) private normalStreams;
+
+    // non cancelable farm streams
+    bool private constant cancelable = false;
 
     /**
      * @notice User can have at most one votingStream and one normalStream.
@@ -154,7 +157,8 @@ contract XdexStream is ReentrancyGuard {
             depositAmount,
             startBlock,
             unlockKBlocks,
-            unlockRatio
+            unlockRatio,
+            cancelable
         );
 
         if (streamType == 0) {

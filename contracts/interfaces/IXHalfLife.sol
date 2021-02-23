@@ -7,14 +7,16 @@ interface IXHalfLife {
         uint256 depositAmount,
         uint256 startBlock,
         uint256 kBlock,
-        uint256 unlockRatio
+        uint256 unlockRatio,
+        bool cancelable
     ) external returns (uint256);
 
     function createEtherStream(
         address recipient,
         uint256 startBlock,
         uint256 kBlock,
-        uint256 unlockRatio
+        uint256 unlockRatio,
+        bool cancelable
     ) external payable returns (uint256);
 
     function hasStream(uint256 streamId) external view returns (bool);
@@ -32,7 +34,8 @@ interface IXHalfLife {
             uint256 remaining,
             uint256 withdrawable,
             uint256 unlockRatio,
-            uint256 lastRewardBlock
+            uint256 lastRewardBlock,
+            bool cancelable
         );
 
     function fundStream(uint256 streamId, uint256 amount)

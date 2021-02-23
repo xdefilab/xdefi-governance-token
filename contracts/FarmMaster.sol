@@ -20,7 +20,6 @@ contract FarmMaster is ReentrancyGuard {
     //min and max lpToken count in one pool
     uint256 private constant LpTokenMinCount = 1;
     uint256 private constant LpTokenMaxCount = 8;
-    uint256 private constant PoolMaxCount = 64;
 
     uint256 private constant LpRewardFixDec = 1e12;
 
@@ -198,7 +197,6 @@ contract FarmMaster is ReentrancyGuard {
         uint256 _lpFactor,
         bool _withUpdate
     ) external onlyCore {
-        require(poolInfo.length < PoolMaxCount, "MAX Pool Count Error");
         require(_lpFactor > 0, "Lp Token Factor is zero");
 
         if (_withUpdate) {
@@ -436,6 +434,7 @@ contract FarmMaster is ReentrancyGuard {
 
         PoolInfo storage pool = poolInfo[_pid];
         uint256 index = _getLpIndexInPool(_pid, _lpToken);
+
         require(index < poolInfo[_pid].LpTokenInfos.length, "not valid index");
 
         updatePool(_pid);

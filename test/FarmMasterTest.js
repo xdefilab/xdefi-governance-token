@@ -14,22 +14,13 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
         this.halflife = await XHalflife.new({ from: alice });
     });
 
-    it('should set correct state variables', async () => {
-        this.master = await FarmMaster.new(this.xdex.address, '0', { from: minter });
-
-        const masterCore = await this.master.core();
-        const xdexCore = await this.xdex.core();
-
-        assert.equal(masterCore, alice);
-        assert.equal(xdexCore, alice);
-    });
-
     context('With ERC-LP token added to the field', () => {
         beforeEach(async () => {
             this.lp = await MockERC20.new('LPToken', 'LP', '10000000000', { from: minter });
             await this.lp.transfer(alice, '1000', { from: minter });
             await this.lp.transfer(bob, '1000', { from: minter });
             await this.lp.transfer(carol, '1000', { from: minter });
+
             this.lp2 = await MockERC20.new('LPToken2', 'LP2', '10000000000', { from: minter });
             await this.lp2.transfer(alice, '1000', { from: minter });
             await this.lp2.transfer(bob, '1000', { from: minter });
@@ -38,11 +29,12 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
 
         it('should allow emergency withdraw', async () => {
             // start at block 10
-            this.master = await FarmMaster.new(this.xdex.address, '10', { from: minter });
+            this.master = await FarmMaster.new(this.xdex.address, '10', { from: alice });
             this.stream = await XdexStream.new(this.xdex.address, this.halflife.address, this.master.address);
 
-            await this.xdex.addMinter(this.master.address, { from: alice });
-            await this.master.addPool(this.lp.address, 0, '100', true, { from: alice });
+            await this.xdex.setCore(this.master.address, { from: alice });
+            await this.master.setStream(this.stream.address, { from: alice });
+            await this.master.addPool(this.lp.address, 0, '100', false, { from: alice });
             await this.master.setVotingPool('10', { from: alice });
             await this.lp.approve(this.master.address, '1000', { from: bob });
 
@@ -59,10 +51,11 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
 
         it('should give out different XDEX on each stage', async () => {
             // start at block 50
-            this.master = await FarmMaster.new(this.xdex.address, '50', { from: minter });
+            this.master = await FarmMaster.new(this.xdex.address, '50', { from: alice });
             this.stream = await XdexStream.new(this.xdex.address, this.halflife.address, this.master.address);
 
-            await this.master.setStream(this.stream.address);
+            await this.xdex.setCore(this.master.address, { from: alice });
+            await this.master.setStream(this.stream.address, { from: alice });
             await this.master.addPool(this.lp.address, 0, '100', true, { from: alice });//normal pool   
             await this.master.setVotingPool('10', { from: alice });
             await this.lp.approve(this.master.address, '1000', { from: bob });
@@ -75,7 +68,7 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
             stream = await this.halflife.getStream('1');
             assert.equal(stream.sender, this.stream.address);
             assert.equal(stream.recipient, bob);
-            assert.equal(stream.kBlock.toString(), '40');
+            assert.equal(stream.kBlock.toString(), '60');
             assert.equal(stream.depositAmount.toString(), '10000000000000000000');
             assert.equal(stream.startBlock.toString(), '51');
             assert.equal(stream.remaining, '10000000000000000000');
@@ -83,13 +76,13 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
             assert.equal(stream.lastRewardBlock.toString(), '51');
 
             await time.advanceBlockTo('54');
-            await this.master.deposit(0, this.lp.address, '0', { from: bob }); // block 55
+            await this.master.withdraw(0, this.lp.address, '0', { from: bob }); // block 55
 
             //fund to stream
             stream = await this.halflife.getStream('1');
-            assert.equal(stream.depositAmount.toString(), '1210000000000000000000');//240*5 + 10
-            assert.equal((await this.halflife.balanceOf('1')).remaining.toString(), '1210000000000000000000');
-            assert.equal((await this.halflife.balanceOf('1')).withdrawable.toString(), '0');
+            assert.equal(stream.depositAmount.toString(), '650000000000000000000');// 160*4 + 10
+            assert.equal((await this.halflife.balanceOf('1')).remaining.toString(), '649700473881276128390');
+            assert.equal((await this.halflife.balanceOf('1')).withdrawable.toString(), '299526118723871610');
 
             await time.advanceBlockTo('84');
 
@@ -97,34 +90,34 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
             //emits a Withdraw event
             truffleAssert.eventEmitted(result, "Withdraw");
 
-            assert.equal((await this.xdex.totalSupply()).toString(), '8410000000000000000000');//240*35 + 10
-            assert.equal((await this.xdex.balanceOf(bob)).toString(), '0');
+            assert.equal((await this.xdex.totalSupply()).toString(), '5610000000000000000000');//160*35 + 10
+            assert.equal((await this.xdex.balanceOf(bob)).toString(), '1120000000000000000000');
             assert.equal((await this.lp.balanceOf(bob)).toString(), '1000');
 
             let reward = (await this.master.getXCountToReward('50', '85'))._totalReward.toString();
-            assert.equal(reward, '8400000000000000000000');//240*35=8400
+            assert.equal(reward, '5600000000000000000000');
             assert.equal((await this.master.pendingXDEX('0', bob)).toString(), '0');
 
             let streamWithdraw = (await this.halflife.balanceOf('1')).withdrawable.toString();
             let streamRemain = (await this.halflife.balanceOf('1')).remaining.toString();
-            //None withdrawable 
-            assert.equal(streamWithdraw, '0');
-            assert.equal(streamRemain, '8410000000000000000000');
+
+            assert.equal(streamWithdraw, '1584937608830024452');
+            assert.equal(streamRemain, '4488415062391169975548');
 
             await time.advanceBlockTo('91');
-            await this.master.deposit(0, this.lp.address, '0', { from: bob });
-            //12.61 is withdrawable 
-            assert.equal((await this.halflife.balanceOf('1')).withdrawable.toString(), '8410000000000000000');
-            assert.equal((await this.halflife.balanceOf('1')).remaining.toString(), '8401590000000000000000');
-            assert.equal((await this.xdex.totalSupply()).toString(), '8410000000000000000000');// 240*35 + 10
+            await this.master.withdraw(0, this.lp.address, '0', { from: bob });
+
+            assert.equal((await this.halflife.balanceOf('1')).withdrawable.toString(), '2108817456020796274');
+            assert.equal((await this.halflife.balanceOf('1')).remaining.toString(), '4487891182543979203726');
+            assert.equal((await this.xdex.totalSupply()).toString(), '5610000000000000000000');// 160*35 + 10
 
             await time.advanceBlockTo('93');
             //withdraw all
-            await this.stream.withdraw(StreamTypeNormal, '8410000000000000000', { from: bob });
-            assert.equal((await this.xdex.balanceOf(bob)).toString(), "8410000000000000000");
+            await this.halflife.withdrawFromStream('1', '2108817456020796274', { from: bob });
+            assert.equal((await this.xdex.balanceOf(bob)).toString(), "1122108817456020796274");
 
-            assert.equal((await this.halflife.balanceOf('1')).withdrawable.toString(), '0');
-            assert.equal((await this.halflife.balanceOf('1')).remaining.toString(), '8401590000000000000000');
+            assert.equal((await this.halflife.balanceOf('1')).withdrawable.toString(), '149668725078948252');
+            assert.equal((await this.halflife.balanceOf('1')).remaining.toString(), '4487741513818900255474');
         });
 
 
@@ -133,13 +126,13 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
             this.master = await FarmMaster.new(this.xdex.address, '100', { from: alice });
 
             let reward = (await this.master.getXCountToReward(10, 1000))._totalReward.toString();
-            assert.equal(reward, '216000000000000000000000');
+            assert.equal(reward, '144000000000000000000000');
 
             reward = (await this.master.getXCountToReward(40000, 120300))._totalReward.toString();
-            assert.equal(reward, '9636000000000000000000000');
+            assert.equal(reward, '8032000000000000000000000');
 
             reward = (await this.master.getXCountToReward(600000, 601000))._totalReward.toString();
-            assert.equal(reward, '10200000000000000000000');
+            assert.equal(reward, '20000000000000000000000');
         });
 
         it('should give out XDEX only after farming time', async () => {
@@ -147,6 +140,7 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
             this.master = await FarmMaster.new(this.xdex.address, '130', { from: alice });
             this.stream = await XdexStream.new(this.xdex.address, this.halflife.address, this.master.address);
 
+            await this.xdex.setCore(this.master.address, { from: alice });
             await this.master.setStream(this.stream.address);
             await this.master.addPool(this.lp.address, 0, '100', true);
             await this.master.setVotingPool('10', { from: alice });
@@ -156,30 +150,30 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
             await this.master.deposit(0, this.lp.address, '100', { from: bob });
 
             await time.advanceBlockTo('160');
-            await this.master.deposit(0, this.lp.address, '0', { from: bob }); // block 161
+            await this.master.withdraw(0, this.lp.address, '0', { from: bob }); // block 161
 
             let stream = await this.halflife.getStream('1');
-            assert.equal(stream.depositAmount.toString(), '7450000000000000000000');// 240 * 31 + 10
-            assert.equal(stream.withdrawable.toString(), '0');
-            assert.equal(stream.remaining.toString(), '7450000000000000000000');
-            assert.equal(stream.lastRewardBlock.toString(), '131');
-            assert.equal((await this.xdex.balanceOf(bob)).toString(), '0');
+            assert.equal(stream.depositAmount.toString(), '3978000000000000000000');// 160 * 31 * 0.8 + 10
+            assert.equal(stream.withdrawable.toString(), '997497250625000000');
+            assert.equal(stream.remaining.toString(), '3977002502749375000000');
+            assert.equal(stream.lastRewardBlock.toString(), '161');
+            // bob got 992 xdex
+            assert.equal((await this.xdex.balanceOf(bob)).toString(), '992000000000000000000');
 
             await time.advanceBlockTo('184');
-            await this.master.deposit(0, this.lp.address, '0', { from: bob }); // block 185
+            await this.master.withdraw(0, this.lp.address, '0', { from: bob }); // block 185
             stream = await this.halflife.getStream('1');
-            assert.equal(stream.depositAmount.toString(), '13210000000000000000000');//240 * 55 + 10
-            assert.equal(stream.withdrawable.toString(), '7450000000000000000');//7.45
-            assert.equal(stream.remaining.toString(), '13202550000000000000000');//13202.55
-            assert.equal(stream.lastRewardBlock.toString(), '171');
+            assert.equal(stream.depositAmount.toString(), '7050000000000000000000');
+            assert.equal(stream.withdrawable.toString(), '3510867266553240101');
+            assert.equal(stream.remaining.toString(), '7046489132733446759899');
+            assert.equal(stream.lastRewardBlock.toString(), '185');
 
             //bob withdraw 0.108
-            await this.stream.withdraw(StreamTypeNormal, '108000000000000000', { from: bob });
-            //xdex total supply is 240 * 55 + 10 = 13210
-            assert.equal((await this.xdex.totalSupply()).toString(), '13210000000000000000000');
-            assert.equal((await this.xdex.balanceOf(bob)).toString(), '108000000000000000');
-            //7.45 - 0.108
-            assert.equal((await this.halflife.balanceOf('1')).withdrawable.toString(), '7342000000000000000');
+            await this.halflife.withdrawFromStream('1', '108000000000000000', { from: bob });
+            //xdex total supply is 160 * 55 + 10 = 8810
+            assert.equal((await this.xdex.totalSupply()).toString(), '8810000000000000000000');
+            assert.equal((await this.xdex.balanceOf(bob)).toString(), '1760108000000000000000');
+            assert.equal((await this.halflife.balanceOf('1')).withdrawable.toString(), '3520366532336448371');
         });
 
         it('should not distribute XDEX if no one deposit', async () => {
@@ -187,6 +181,7 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
             this.master = await FarmMaster.new(this.xdex.address, '210', { from: alice });
             this.stream = await XdexStream.new(this.xdex.address, this.halflife.address, this.master.address);
 
+            await this.xdex.setCore(this.master.address, { from: alice });
             await this.master.setStream(this.stream.address);
             await this.master.addPool(this.lp.address, 0, '100', true);
             await this.master.setVotingPool('10', { from: alice });
@@ -205,7 +200,7 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
 
             await time.advanceBlockTo('229');
             await this.master.withdraw(0, this.lp.address, '10', { from: bob });
-            assert.equal((await this.xdex.totalSupply()).toString(), "2410000000000000000000"); //240 * 10 + 10
+            assert.equal((await this.xdex.totalSupply()).toString(), "1610000000000000000000"); //160 * 10 + 10
             assert.equal((await this.lp.balanceOf(bob)).toString(), "1000");
         });
 
@@ -215,6 +210,7 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
             this.master = await FarmMaster.new(this.xdex.address, '300', { from: alice });
             this.stream = await XdexStream.new(this.xdex.address, this.halflife.address, this.master.address);
 
+            await this.xdex.setCore(this.master.address, { from: alice });
             await this.master.setStream(this.stream.address);
             await this.master.setVotingPool('10', { from: alice });
             await this.master.addPool(this.lp.address, 0, '100', true);
@@ -239,37 +235,37 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
             await time.advanceBlockTo('319');
             await this.master.deposit(0, this.lp.address, '10', { from: alice });// block 320
 
-            assert.equal((await this.xdex.totalSupply()).toString(), '2430000000000000000000'); //2400 + 30
+            assert.equal((await this.xdex.totalSupply()).toString(), '1630000000000000000000'); //160 * 10 + 30
 
             //At this point:
-            //Alice should have: 4*240 + 4*1/3*240 + 2*1/6*240 = 1360
-            assert.equal((await this.halflife.balanceOf('1')).remaining.toString(), '1370000000000000000000');
+            //Alice should have: 4*160 + 4*1/3*160 + 2*1/6*160 = 1360
+            assert.equal((await this.halflife.balanceOf('1')).remaining.toString(), '735023375930995763889');
             //bob balance 10
-            assert.equal((await this.halflife.balanceOf('2')).remaining.toString(), '10000000000000000000');
+            assert.equal((await this.halflife.balanceOf('2')).remaining.toString(), '9999166284478202160');
             //carol balance 10
-            assert.equal((await this.halflife.balanceOf('3')).remaining.toString(), '10000000000000000000');
+            assert.equal((await this.halflife.balanceOf('3')).remaining.toString(), '9999833251334714500');
             //FarmMaster should have the remaining: 2400 - 1360 = 1040
-            assert.equal((await this.xdex.balanceOf(this.master.address)).toString(), '1040000000000000000000');
+            assert.equal((await this.xdex.balanceOf(this.master.address)).toString(), '693333333333333333334');
 
             let bobPending = (await this.master.pendingXDEX(0, bob)).toString();
             let carolPending = (await this.master.pendingXDEX(0, carol)).toString();
 
-            // Bob pending XDEX: 4*2/3*240 + 2*1/3*240 = 800
-            assert.equal(bobPending, '800000000000000000000');
-            // Carol pending XDEX: 2*3/6*240 = 240
-            assert.equal(carolPending, '240000000000000000000');
+            // Bob pending XDEX: 4*2/3*160 + 2*1/3*160 = 1600/3
+            assert.equal(bobPending, '533333333333333333333');
+            // Carol pending XDEX: 2*3/6*160
+            assert.equal(carolPending, '160000000000000000000');
 
             // Bob withdraws 5 LPs at block 330. At this point:
             //   Bob should have: 800 + 10*2/7*240 = 1485.71
             await time.advanceBlockTo('329');
             await this.master.withdraw(0, this.lp.address, '5', { from: bob });
 
-            assert.equal((await this.xdex.totalSupply()).toString(), '4830000000000000000000'); //4830
-            //bob balance 10 + 1485.71
-            assert.equal((await this.halflife.balanceOf('2')).remaining.toString(), '1495714285714285714285');
-            //carol balance 10
-            assert.equal((await this.halflife.balanceOf('3')).remaining.toString(), '10000000000000000000');
-            assert.equal((await this.xdex.balanceOf(this.master.address)).toString(), '1954285714285714285715');
+            assert.equal((await this.xdex.totalSupply()).toString(), '3230000000000000000000'); //3230
+            //bob balance
+            assert.equal((await this.halflife.balanceOf('2')).remaining.toString(), '802081135252429315476');
+            //carol balance
+            assert.equal((await this.halflife.balanceOf('3')).remaining.toString(), '9998165917602229940');
+            assert.equal((await this.xdex.balanceOf(this.master.address)).toString(), '1302857142857142857144');
 
             // Alice withdraws 20 LPs at block 340.
             // Bob withdraws 15 LPs at block 350.
@@ -280,16 +276,16 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
             await this.master.withdraw(0, this.lp.address, '15', { from: bob });
             await time.advanceBlockTo('359')
             await this.master.withdraw(0, this.lp.address, '30', { from: carol });
-            assert.equal((await this.xdex.totalSupply()).toString(), '12030000000000000000000'); //12000 + 30
-            // Alice should have:  + 10*2/6.5*240 + 10 = 2794.17
-            assert.equal((await this.halflife.balanceOf('1')).remaining.toString(), '2791381648351648351649');
-            assert.equal((await this.halflife.balanceOf('1')).withdrawable.toString(), '2794175824175824175');
-            // Bob should have:  + 10*1.5/6.5 * 240 + 10*1.5/4.5*240 + 10 = 2849.56
-            assert.equal((await this.halflife.balanceOf('2')).remaining.toString(), '2846710879120879120879');
-            assert.equal((await this.halflife.balanceOf('2')).withdrawable.toString(), '2849560439560439560');
-            // Carol should have:  + 10*3/6.5*240 + 10*3/4.5*240 + 10*240 + 10 = 6387.25
-            assert.equal((await this.halflife.balanceOf('3')).remaining.toString(), '6386253736263736263736');
-            assert.equal((await this.halflife.balanceOf('3')).withdrawable.toString(), '10000000000000000');
+            assert.equal((await this.xdex.totalSupply()).toString(), '8030000000000000000000'); //8000 + 30
+            // Alice should have
+            assert.equal((await this.halflife.balanceOf('1')).remaining.toString(), '1493587203944409219363');
+            assert.equal((await this.halflife.balanceOf('1')).withdrawable.toString(), '1306568949363674410');
+            // Bob should have:  + 10*1.5/6.5 * 160 + 10*1.5/4.5*160 + 10
+            assert.equal((await this.halflife.balanceOf('2')).remaining.toString(), '1523370107051500594763');
+            assert.equal((await this.halflife.balanceOf('2')).withdrawable.toString(), '1062127380733837472');
+            // Carol should have:  + 10*3/6.5*160 + 10*3/4.5*160 + 10*160 + 10 
+            assert.equal((await this.halflife.balanceOf('3')).remaining.toString(), '3410128481894041661797');
+            assert.equal((await this.halflife.balanceOf('3')).withdrawable.toString(), '545510779951012196');
             // All of them should have 1000 LPs back.
             assert.equal((await this.lp.balanceOf(alice)).toString(), '1000');
             assert.equal((await this.lp.balanceOf(bob)).toString(), '1000');
@@ -302,6 +298,7 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
             this.master = await FarmMaster.new(this.xdex.address, '380', { from: alice });
             this.stream = await XdexStream.new(this.xdex.address, this.halflife.address, this.master.address);
 
+            await this.xdex.setCore(this.master.address, { from: alice });
             await this.master.setStream(this.stream.address);
             await this.lp.approve(this.master.address, '1000', { from: alice });
             await this.lp2.approve(this.master.address, '1000', { from: bob });
@@ -316,14 +313,14 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
             // change pool1 factor from 20 to 50
             await this.master.setLpFactor(1, this.lp2.address, '50', true);
 
-            // Alice should have 5*1/3*240 = 400, Bob should have 5*2/3*240 = 800
-            assert.equal((await this.master.pendingXDEX(0, alice)).toString(), '400000000000000000000');
-            assert.equal((await this.master.pendingXDEX(1, bob)).toString(), '800000000000000000000');
+            // Alice should have 5*1/3*160 = 266.66, Bob should have 5*2/3*160 = 533.33
+            assert.equal((await this.master.pendingXDEX(0, alice)).toString(), '266666666666666666666');
+            assert.equal((await this.master.pendingXDEX(1, bob)).toString(), '533333333333333333333');
 
             await time.advanceBlockTo('390');
-            // Alice should have 400 + 5*1/6*240 = 600, Bob should have 800 + 5*5/6*240 = 1800
-            assert.equal((await this.master.pendingXDEX(0, alice)).toString(), '600000000000000000000');
-            assert.equal((await this.master.pendingXDEX(1, bob)).toString(), '1800000000000000000000');
+            // Alice should have 266.66 + 5*1/6*160, Bob should have 533.33 + 5*5/6*160
+            assert.equal((await this.master.pendingXDEX(0, alice)).toString(), '399999999999999999999');
+            assert.equal((await this.master.pendingXDEX(1, bob)).toString(), '1199999999999999999999');
         });
 
         it('should give proper XDEX allocation by xFactor to each pool', async () => {
@@ -331,6 +328,7 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
             this.master = await FarmMaster.new(this.xdex.address, '400', { from: alice });
             this.stream = await XdexStream.new(this.xdex.address, this.halflife.address, this.master.address);
 
+            await this.xdex.setCore(this.master.address, { from: alice });
             await this.master.setStream(this.stream.address);
             await this.master.setVotingPool('10', { from: alice });
             await this.lp.approve(this.master.address, '1000', { from: alice });
@@ -345,17 +343,17 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
             await time.advanceBlockTo('419');
             // Add LP2 to the pool1 with factor 20 at block 420
             await this.master.addPool(this.lp2.address, 0, '20', true);
-            // Alice should have 10*240 pending reward
-            assert.equal((await this.master.pendingXDEX(0, alice)).toString(), '2400000000000000000000');
+            // Alice should have 10*160 pending reward
+            assert.equal((await this.master.pendingXDEX(0, alice)).toString(), '1600000000000000000000');
             // Bob deposits 5 LP2s at block 425
             await time.advanceBlockTo('424');
             await this.master.deposit(1, this.lp2.address, '5', { from: bob });
-            // Alice should have 2400 + 5*1/3*240 = 2800 pending reward
-            assert.equal((await this.master.pendingXDEX(0, alice)).toString(), '2800000000000000000000');
+            // Alice should have 1600 + 5*1/3*160 pending reward
+            assert.equal((await this.master.pendingXDEX(0, alice)).toString(), '1866666666666666666666');
             await time.advanceBlockTo('430');
-            // At block 430. Bob should get 5*2/3*240 = 800. Alice should get 600.
-            assert.equal((await this.master.pendingXDEX(0, alice)).toString(), '3200000000000000000000');
-            assert.equal((await this.master.pendingXDEX(1, bob)).toString(), '800000000000000000000');
+            // At block 430. Bob should get 5*2/3*160. Alice should get 2133.33.
+            assert.equal((await this.master.pendingXDEX(0, alice)).toString(), '2133333333333333333333');
+            assert.equal((await this.master.pendingXDEX(1, bob)).toString(), '533333333333333333333');
         });
 
         it('should accept multi lp tokens by each pool', async () => {
@@ -363,6 +361,7 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
             this.master = await FarmMaster.new(this.xdex.address, '500', { from: alice });
             this.stream = await XdexStream.new(this.xdex.address, this.halflife.address, this.master.address);
 
+            await this.xdex.setCore(this.master.address, { from: alice });
             await this.master.setStream(this.stream.address);
             await this.lp.approve(this.master.address, '1000', { from: alice });
             await this.lp2.approve(this.master.address, '1000', { from: bob });
@@ -378,20 +377,20 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
             // Add LP2 to the pool0 with factor 300 at block 520
             await this.master.addLpTokenToPool(0, this.lp2.address, 0, '300', { from: alice });
 
-            // Alice should have 10*240 pending reward
-            assert.equal((await this.master.pendingXDEX(0, alice)).toString(), '2400000000000000000000');
+            // Alice should have 10*160 pending reward
+            assert.equal((await this.master.pendingXDEX(0, alice)).toString(), '1600000000000000000000');
 
             // Bob deposits 20 LP2s at block 525
             await time.advanceBlockTo('524');
             await this.master.deposit(0, this.lp2.address, '20', { from: bob });
 
-            // Alice should have 2400 + 5*1/4*240 = 2700 pending reward
-            assert.equal((await this.master.pendingXDEX(0, alice)).toString(), '2700000000000000000000');
+            // Alice should have 1600 + 5*1/4*160 = 2700 pending reward
+            assert.equal((await this.master.pendingXDEX(0, alice)).toString(), '1800000000000000000000');
 
             await time.advanceBlockTo('530');
-            // At block 430. Bob should get 5*3/4*240 = 900, alice should get 5*1/4*240=300
-            assert.equal((await this.master.pendingXDEX(0, alice)).toString(), '3000000000000000000000');
-            assert.equal((await this.master.pendingXDEX(0, bob)).toString(), '900000000000000000000');
+            // At block 430. Bob should get 5*3/4*160 = 600, alice should get 5*1/4*160=300
+            assert.equal((await this.master.pendingXDEX(0, alice)).toString(), '2000000000000000000000');
+            assert.equal((await this.master.pendingXDEX(0, bob)).toString(), '600000000000000000000');
         });
 
         it('should stop giving bonus XDEX after the bonus period ends', async () => {
@@ -399,6 +398,7 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
             this.master = await FarmMaster.new(this.xdex.address, '600', { from: alice });
             this.stream = await XdexStream.new(this.xdex.address, this.halflife.address, this.master.address);
 
+            await this.xdex.setCore(this.master.address, { from: alice });
             await this.master.setStream(this.stream.address);
             await this.lp.approve(this.master.address, '10000', { from: alice });
             await this.master.addPool(this.lp.address, 0, '1', true);
@@ -430,6 +430,7 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
             this.master = await FarmMaster.new(this.xdex.address, '700', { from: alice });
             this.stream = await XdexStream.new(this.xdex.address, this.halflife.address, this.master.address);
 
+            await this.xdex.setCore(this.master.address, { from: alice });
             await this.master.setStream(this.stream.address);
             await this.master.setVotingPool('10', { from: alice });
 
@@ -469,11 +470,11 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
             // Alice should have P0: 50 XDEX, P1: 250 XDEX
             // Bob should have P0: 120 XDEX, P1: 150 XDEX
             // Carol should have P0: 630 XDEX, P1: 0 XDEX
-            assert.equal((await this.master.pendingXDEX(0, alice)).toString(), '50000000000000000000');
-            assert.equal((await this.master.pendingXDEX(1, alice)).toString(), '250000000000000000000');
-            assert.equal((await this.master.pendingXDEX(0, bob)).toString(), '120000000000000000000');
-            assert.equal((await this.master.pendingXDEX(1, bob)).toString(), '150000000000000000000');
-            assert.equal((await this.master.pendingXDEX(0, carol)).toString(), '630000000000000000000');
+            assert.equal((await this.master.pendingXDEX(0, alice)).toString(), '33333333333333333333');
+            assert.equal((await this.master.pendingXDEX(1, alice)).toString(), '166666666666666666666');
+            assert.equal((await this.master.pendingXDEX(0, bob)).toString(), '79999999999999999999');
+            assert.equal((await this.master.pendingXDEX(1, bob)).toString(), '99999999999999999999');
+            assert.equal((await this.master.pendingXDEX(0, carol)).toString(), '419999999999999999998');
             assert.equal((await this.master.pendingXDEX(1, carol)).toString(), '0');
 
             await time.advanceBlockTo('709');
@@ -484,11 +485,11 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
             // Alice should have P0: 50*2 + 37.5 XDEX, P1: 250*2 + 375 XDEX
             // Bob should have P0: 120*2 + 90 XDEX, P1: 150*2 + 225 XDEX
             // Carol should have P0: 630*2 + 360 + 112.5 XDEX, P1: 0 XDEX
-            assert.equal((await this.master.pendingXDEX(0, alice)).toString(), '137500000000000000000');
-            assert.equal((await this.master.pendingXDEX(1, alice)).toString(), '875000000000000000000');
-            assert.equal((await this.master.pendingXDEX(0, bob)).toString(), '330000000000000000000');
-            assert.equal((await this.master.pendingXDEX(1, bob)).toString(), '525000000000000000000');
-            assert.equal((await this.master.pendingXDEX(0, carol)).toString(), '1732500000000000000000');
+            assert.equal((await this.master.pendingXDEX(0, alice)).toString(), '91666666666666666666');
+            assert.equal((await this.master.pendingXDEX(1, alice)).toString(), '583333333333333333333');
+            assert.equal((await this.master.pendingXDEX(0, bob)).toString(), '219999999999999999999');
+            assert.equal((await this.master.pendingXDEX(1, bob)).toString(), '349999999999999999999');
+            assert.equal((await this.master.pendingXDEX(0, carol)).toString(), '1154999999999999999998');
             assert.equal((await this.master.pendingXDEX(1, carol)).toString(), '0');
 
             await time.advanceBlockTo('719');
@@ -498,11 +499,11 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
 
             await time.advanceBlockTo('725');
             //Important: Alice should be 175
-            assert.equal((await this.master.pendingXDEX(0, alice)).toString(), '175000000000000000000');
-            assert.equal((await this.master.pendingXDEX(1, alice)).toString(), '1678571428571428571428');
-            assert.equal((await this.master.pendingXDEX(0, bob)).toString(), '522857142857142857142');
-            assert.equal((await this.master.pendingXDEX(1, bob)).toString(), '1007142857142857142856');
-            assert.equal((await this.master.pendingXDEX(0, carol)).toString(), '2616428571428571428571');
+            assert.equal((await this.master.pendingXDEX(0, alice)).toString(), '116666666666666666666');
+            assert.equal((await this.master.pendingXDEX(1, alice)).toString(), '1119047619047619047618');
+            assert.equal((await this.master.pendingXDEX(0, bob)).toString(), '348571428571428571428');
+            assert.equal((await this.master.pendingXDEX(1, bob)).toString(), '671428571428571428571');
+            assert.equal((await this.master.pendingXDEX(0, carol)).toString(), '1744285714285714285711');
             assert.equal((await this.master.pendingXDEX(1, carol)).toString(), '0');
 
             await time.advanceBlockTo('729');
@@ -510,22 +511,22 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
             //Pool 1 -> (LP2, 0)
             await this.master.setLpFactor(1, this.lp2.address, '0', true);//block 730
 
-            assert.equal((await this.master.pendingXDEX(0, alice)).toString(), '175000000000000000000');
-            assert.equal((await this.master.pendingXDEX(1, alice)).toString(), '2107142857142857142856');
-            assert.equal((await this.master.pendingXDEX(0, bob)).toString(), '625714285714285714285');
-            assert.equal((await this.master.pendingXDEX(1, bob)).toString(), '1264285714285714285714');
-            assert.equal((await this.master.pendingXDEX(0, carol)).toString(), '3027857142857142857142');
+            assert.equal((await this.master.pendingXDEX(0, alice)).toString(), '116666666666666666666');
+            assert.equal((await this.master.pendingXDEX(1, alice)).toString(), '1404761904761904761904');
+            assert.equal((await this.master.pendingXDEX(0, bob)).toString(), '417142857142857142856');
+            assert.equal((await this.master.pendingXDEX(1, bob)).toString(), '842857142857142857142');
+            assert.equal((await this.master.pendingXDEX(0, carol)).toString(), '2018571428571428571426');
             assert.equal((await this.master.pendingXDEX(1, carol)).toString(), '0');
 
             await time.advanceBlockTo('735');
-            // From 730 to 735, Alice should have 0 XDEX
-            // From 730 to 735, Bob should have P0: 1200 * (20/100) = 240 XDEX
-            // From 730 to 735, Carol should have P0: 1200 * (80/100) = 960 XDEX
-            assert.equal((await this.master.pendingXDEX(0, alice)).toString(), '175000000000000000000');
-            assert.equal((await this.master.pendingXDEX(1, alice)).toString(), '2107142857142857142856');
-            assert.equal((await this.master.pendingXDEX(0, bob)).toString(), '865714285714285714285');//+240
-            assert.equal((await this.master.pendingXDEX(1, bob)).toString(), '1264285714285714285714');
-            assert.equal((await this.master.pendingXDEX(0, carol)).toString(), '3987857142857142857142');//+960
+            // From 730 to 735, Alice should have
+            // From 730 to 735, Bob should have P0: 
+            // From 730 to 735, Carol should have P0:
+            assert.equal((await this.master.pendingXDEX(0, alice)).toString(), '116666666666666666666');
+            assert.equal((await this.master.pendingXDEX(1, alice)).toString(), '1404761904761904761904');
+            assert.equal((await this.master.pendingXDEX(0, bob)).toString(), '577142857142857142856');
+            assert.equal((await this.master.pendingXDEX(1, bob)).toString(), '842857142857142857142');
+            assert.equal((await this.master.pendingXDEX(0, carol)).toString(), '2658571428571428571426');
             assert.equal((await this.master.pendingXDEX(1, carol)).toString(), '0');
 
             await time.advanceBlockTo('739');
@@ -533,20 +534,20 @@ contract('FarmMaster', ([alice, bob, carol, minter]) => {
             //then totalXFactor is 0
             await this.master.setLpFactor(0, this.lp3.address, '0', true);
 
-            assert.equal((await this.master.pendingXDEX(0, alice)).toString(), '175000000000000000000');
-            assert.equal((await this.master.pendingXDEX(1, alice)).toString(), '2107142857142857142856');
-            assert.equal((await this.master.pendingXDEX(0, bob)).toString(), '1105714285714285714285');//+240
-            assert.equal((await this.master.pendingXDEX(1, bob)).toString(), '1264285714285714285714');
-            assert.equal((await this.master.pendingXDEX(0, carol)).toString(), '4947857142857142857142');//+960
+            assert.equal((await this.master.pendingXDEX(0, alice)).toString(), '116666666666666666666');
+            assert.equal((await this.master.pendingXDEX(1, alice)).toString(), '1404761904761904761904');
+            assert.equal((await this.master.pendingXDEX(0, bob)).toString(), '737142857142857142856');
+            assert.equal((await this.master.pendingXDEX(1, bob)).toString(), '842857142857142857142');
+            assert.equal((await this.master.pendingXDEX(0, carol)).toString(), '3298571428571428571426');
             assert.equal((await this.master.pendingXDEX(1, carol)).toString(), '0');
 
             await time.advanceBlockTo('760');
             // From 740 to 760, every one should have 0 XDEX 
-            assert.equal((await this.master.pendingXDEX(0, alice)).toString(), '175000000000000000000');
-            assert.equal((await this.master.pendingXDEX(1, alice)).toString(), '2107142857142857142856');
-            assert.equal((await this.master.pendingXDEX(0, bob)).toString(), '1105714285714285714285');
-            assert.equal((await this.master.pendingXDEX(1, bob)).toString(), '1264285714285714285714');
-            assert.equal((await this.master.pendingXDEX(0, carol)).toString(), '4947857142857142857142');
+            assert.equal((await this.master.pendingXDEX(0, alice)).toString(), '116666666666666666666');
+            assert.equal((await this.master.pendingXDEX(1, alice)).toString(), '1404761904761904761904');
+            assert.equal((await this.master.pendingXDEX(0, bob)).toString(), '737142857142857142856');
+            assert.equal((await this.master.pendingXDEX(1, bob)).toString(), '842857142857142857142');
+            assert.equal((await this.master.pendingXDEX(0, carol)).toString(), '3298571428571428571426');
             assert.equal((await this.master.pendingXDEX(1, carol)).toString(), '0');
 
             //check alice's stream
