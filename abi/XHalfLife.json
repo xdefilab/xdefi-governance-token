@@ -88,6 +88,12 @@
                     "internalType": "uint256",
                     "name": "unlockRatio",
                     "type": "uint256"
+                },
+                {
+                    "indexed": false,
+                    "internalType": "bool",
+                    "name": "cancelable",
+                    "type": "bool"
                 }
             ],
             "name": "StreamCreated",
@@ -241,6 +247,11 @@
                 },
                 {
                     "internalType": "bool",
+                    "name": "cancelable",
+                    "type": "bool"
+                },
+                {
+                    "internalType": "bool",
                     "name": "isEntity",
                     "type": "bool"
                 }
@@ -281,6 +292,11 @@
                     "internalType": "uint256",
                     "name": "unlockRatio",
                     "type": "uint256"
+                },
+                {
+                    "internalType": "bool",
+                    "name": "cancelable",
+                    "type": "bool"
                 }
             ],
             "name": "createStream",
@@ -317,6 +333,11 @@
                     "internalType": "uint256",
                     "name": "unlockRatio",
                     "type": "uint256"
+                },
+                {
+                    "internalType": "bool",
+                    "name": "cancelable",
+                    "type": "bool"
                 }
             ],
             "name": "createEtherStream",
@@ -412,6 +433,11 @@
                     "internalType": "uint256",
                     "name": "lastRewardBlock",
                     "type": "uint256"
+                },
+                {
+                    "internalType": "bool",
+                    "name": "cancelable",
+                    "type": "bool"
                 }
             ],
             "payable": false,
