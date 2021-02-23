@@ -77,6 +77,12 @@ contract FarmMaster is ReentrancyGuard {
     // The XDEX TOKEN
     XDEX public xdex;
 
+    // Secure Asset Fund for Users(SAFU) address, same as SAFU in xdefi-base/contracts/XConfig.sol
+    address public safu;
+
+    // whitelist of claimable airdrop tokens
+    mapping(address => bool) public claimableTokens;
+
     // The Halflife Proxy Contract
     XdexStream public stream;
 
@@ -159,10 +165,17 @@ contract FarmMaster is ReentrancyGuard {
         _;
     }
 
-    constructor(XDEX _xdex, uint256 _startBlock) public {
+    constructor(
+        XDEX _xdex,
+        uint256 _startBlock,
+        address _safu
+    ) public {
+        require(_safu != address(0), "ERR_ZERO_ADDRESS");
+
         xdex = _xdex;
         startBlock = _startBlock;
         core = msg.sender;
+        safu = _safu;
     }
 
     function poolLength() external view returns (uint256) {
@@ -751,6 +764,21 @@ contract FarmMaster is ReentrancyGuard {
             "tokensPerBlock length not good"
         );
         return tokensPerBlock[stage];
+    }
+
+    // Any airdrop tokens (in whitelist) sent to this contract, should transfer to safu
+    function claimRewards(address token, uint256 amount) external onlyCore {
+        require(claimableTokens[token], "not claimable token");
+
+        IERC20(token).safeTransfer(safu, amount);
+        emit Claim(core, token, amount);
+    }
+
+    function updateClaimableTokens(address token, bool claimable)
+        external
+        onlyCore
+    {
+        claimableTokens[token] = claimable;
     }
 
     // The index in storage starts with 1, then need sub(1)
