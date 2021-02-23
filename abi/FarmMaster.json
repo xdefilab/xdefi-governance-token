@@ -12,6 +12,11 @@
                     "internalType": "uint256",
                     "name": "_startBlock",
                     "type": "uint256"
+                },
+                {
+                    "internalType": "address",
+                    "name": "_safu",
+                    "type": "address"
                 }
             ],
             "payable": false,
@@ -191,6 +196,38 @@
             "inputs": [
                 {
                     "indexed": true,
+                    "internalType": "address",
+                    "name": "_stream",
+                    "type": "address"
+                },
+                {
+                    "indexed": true,
+                    "internalType": "address",
+                    "name": "_streamNew",
+                    "type": "address"
+                }
+            ],
+            "name": "SetStream",
+            "type": "event"
+        },
+        {
+            "anonymous": false,
+            "inputs": [
+                {
+                    "indexed": true,
+                    "internalType": "uint256",
+                    "name": "_pid",
+                    "type": "uint256"
+                }
+            ],
+            "name": "SetVotingPool",
+            "type": "event"
+        },
+        {
+            "anonymous": false,
+            "inputs": [
+                {
+                    "indexed": true,
                     "internalType": "uint256",
                     "name": "pid",
                     "type": "uint256"
@@ -241,36 +278,6 @@
             ],
             "name": "Withdraw",
             "type": "event"
-        },
-        {
-            "constant": true,
-            "inputs": [],
-            "name": "LpTokenMaxCount",
-            "outputs": [
-                {
-                    "internalType": "uint256",
-                    "name": "",
-                    "type": "uint256"
-                }
-            ],
-            "payable": false,
-            "stateMutability": "view",
-            "type": "function"
-        },
-        {
-            "constant": true,
-            "inputs": [],
-            "name": "LpTokenMinCount",
-            "outputs": [
-                {
-                    "internalType": "uint256",
-                    "name": "",
-                    "type": "uint256"
-                }
-            ],
-            "payable": false,
-            "stateMutability": "view",
-            "type": "function"
         },
         {
             "constant": true,
@@ -364,6 +371,21 @@
                     "internalType": "uint256",
                     "name": "lastRewardBlock",
                     "type": "uint256"
+                }
+            ],
+            "payable": false,
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "constant": true,
+            "inputs": [],
+            "name": "safu",
+            "outputs": [
+                {
+                    "internalType": "address",
+                    "name": "",
+                    "type": "address"
                 }
             ],
             "payable": false,
@@ -780,6 +802,37 @@
             "outputs": [],
             "payable": false,
             "stateMutability": "nonpayable",
+            "type": "function"
+        },
+        {
+            "constant": true,
+            "inputs": [
+                {
+                    "internalType": "uint256",
+                    "name": "_pid",
+                    "type": "uint256"
+                },
+                {
+                    "internalType": "address",
+                    "name": "_user",
+                    "type": "address"
+                }
+            ],
+            "name": "getUserLpAmounts",
+            "outputs": [
+                {
+                    "internalType": "address[]",
+                    "name": "lpTokens",
+                    "type": "address[]"
+                },
+                {
+                    "internalType": "uint256[]",
+                    "name": "amounts",
+                    "type": "uint256[]"
+                }
+            ],
+            "payable": false,
+            "stateMutability": "view",
             "type": "function"
         },
         {
