@@ -30,7 +30,7 @@ contract XHalfLife is ReentrancyGuard {
         uint256 withdrawable; // withdrawable balance
         uint256 startBlock; // when should start
         uint256 kBlock; // interval K blocks
-        uint256 unlockRatio; // must be between [1-1000], which means 0.1% to 100%
+        uint256 unlockRatio; // must be between [1-999], which means 0.1% to 99.9%
         uint256 denom; // one readable coin represent
         uint256 lastRewardBlock; // update by create(), fund() and withdraw()
         address token; // ERC20 token address or 0xEe for Ether
@@ -135,7 +135,7 @@ contract XHalfLife is ReentrancyGuard {
         createStreamPreflight(recipient, depositAmount, startBlock, kBlock)
         returns (uint256 streamId)
     {
-        require(unlockRatio <= 1000, "unlockRatio must <= 1000");
+        require(unlockRatio < 1000, "unlockRatio must < 1000");
         require(unlockRatio > 0, "unlockRatio must > 0");
 
         require(token.isContract(), "not contract");
@@ -212,7 +212,7 @@ contract XHalfLife is ReentrancyGuard {
         createStreamPreflight(recipient, msg.value, startBlock, kBlock)
         returns (uint256 streamId)
     {
-        require(unlockRatio <= 1000, "unlockRatio must <= 1000");
+        require(unlockRatio < 1000, "unlockRatio must < 1000");
         require(unlockRatio > 0, "unlockRatio must > 0");
         require(msg.value >= 10**14, "deposit too small");
 
