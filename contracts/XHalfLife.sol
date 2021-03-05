@@ -306,12 +306,52 @@ contract XHalfLife is ReentrancyGuard {
     }
 
     /**
-     * @notice funds to an existing stream.
-     * Throws if the caller is not the stream.sender
+     * @notice funds to an existing stream(for general purpose), 
+     the amount of fund should be simply added to un-withdrawable.
+     * @dev Throws if the caller is not the stream.sender
      * @param streamId The id of the stream to query.
      * @param amount deposit amount by stream sender
      */
-    function fundStream(uint256 streamId, uint256 amount)
+    function singleFundStream(uint256 streamId, uint256 amount)
+        external
+        payable
+        nonReentrant
+        streamExists(streamId)
+        returns (bool)
+    {
+        Stream storage stream = streams[streamId];
+        require(
+            msg.sender == stream.sender,
+            "caller must be the sender of the stream"
+        );
+        require(amount > effectiveValues[streamId], "amount not effective");
+        if (stream.token == AddressHelper.ethAddress()) {
+            require(amount == msg.value, "bad ether fund");
+        } else {
+            stream.token.safeTransferFrom(msg.sender, address(this), amount);
+        }
+
+        (uint256 withdrawable, uint256 remaining) = balanceOf(streamId);
+
+        // update remaining and withdrawable balance
+        stream.lastRewardBlock = block.number;
+        stream.remaining = remaining.add(amount); // = remaining + amount
+        stream.withdrawable = withdrawable; // = withdrawable
+
+        //add funds to total deposit amount
+        stream.depositAmount = stream.depositAmount.add(amount);
+        emit StreamFunded(streamId, amount);
+        return true;
+    }
+
+    /**
+     * @notice Implemented for XDEX farming and vesting,
+     * the amount of fund should be splited to withdrawable and un-withdrawable according to lastRewardBlock.
+     * @dev Throws if the caller is not the stream.sender
+     * @param streamId The id of the stream to query.
+     * @param amount deposit amount by stream sender
+     */
+    function lazyFundStream(uint256 streamId, uint256 amount)
         external
         payable
         nonReentrant
@@ -333,19 +373,25 @@ contract XHalfLife is ReentrancyGuard {
         (uint256 withdrawable, uint256 remaining) = balanceOf(streamId);
 
         uint256 blockHeightDiff = block.number.sub(stream.lastRewardBlock);
-        uint256 m = amount.mul(stream.kBlock).div(blockHeightDiff); //If underflow m might be 0
-        uint256 noverk = blockHeightDiff.mul(ONE).div(stream.kBlock);
-        uint256 mu = stream.unlockRatio.mul(ONE).div(1000);
+        // If underflow m might be 0, peg true kBlock to 1, if bHD 0 then error.
+        // Minimum amount is 100
+        uint256 m = amount.mul(ONE).div(blockHeightDiff);
+        // peg true kBlock to 1 so n over k always greater or equal 1
+        uint256 noverk = blockHeightDiff.mul(ONE);
+        // peg true mu to mu/kBlock
+        uint256 mu = stream.unlockRatio.mul(ONE).div(1000).div(stream.kBlock);
+        // Enlarged due to mu divided by kBlock
         uint256 onesubmu = ONE.sub(mu);
         // uint256 s = m.mul(ONE.sub(XNum.bpow(onesubmu,noverk))).div(ONE).div(mu).mul(ONE);
-        uint256 s = m.mul(ONE.sub(XNum.bpow(onesubmu, noverk))).div(mu);
+        uint256 s =
+            m.mul(ONE.sub(XNum.bpow(onesubmu, noverk))).div(mu).div(ONE);
 
         // update remaining and withdrawable balance
         stream.lastRewardBlock = block.number;
-        stream.remaining = remaining.add(amount * 2).sub(s); // = remaining + amount + (amount - s)
-        stream.withdrawable = withdrawable.add(s).sub(amount); // = withdrawable - amount + s
+        stream.remaining = remaining.add(amount).sub(s); // = remaining + (amount - s)
+        stream.withdrawable = withdrawable.add(s); // = withdrawable + s
 
-        //add funds to total deposit amount
+        // add funds to total deposit amount
         stream.depositAmount = stream.depositAmount.add(amount);
         emit StreamFunded(streamId, amount);
         return true;
