@@ -38,11 +38,6 @@ interface IXHalfLife {
             bool cancelable
         );
 
-    function fundStream(uint256 streamId, uint256 amount)
-        external
-        payable
-        returns (bool);
-
     function balanceOf(uint256 streamId)
         external
         view
@@ -53,6 +48,16 @@ interface IXHalfLife {
         returns (bool);
 
     function cancelStream(uint256 streamId) external returns (bool);
+
+    function singleFundStream(uint256 streamId, uint256 amount)
+        external
+        payable
+        returns (bool);
+
+    function lazyFundStream(uint256 streamId, uint256 amount)
+        external
+        payable
+        returns (bool);
 
     function getVersion() external pure returns (bytes32);
 }

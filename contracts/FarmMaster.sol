@@ -464,11 +464,6 @@ contract FarmMaster is ReentrancyGuard {
                     .sub(user.rewardDebt);
 
             if (pending > 0) {
-                //20% pending should unlock immediately
-                uint256 unlockAmount = pending / 5;
-                xdex.transfer(msg.sender, unlockAmount);
-                pending = pending.sub(unlockAmount);
-
                 //create the stream or add funds to stream
                 (bool hasVotingStream, bool hasNormalStream) =
                     stream.hasStream(msg.sender);
@@ -569,11 +564,6 @@ contract FarmMaster is ReentrancyGuard {
                 .sub(user.rewardDebt);
 
         if (pending > 0) {
-            //20% pending should unlock immediately
-            uint256 unlockAmount = pending / 5;
-            xdex.transfer(msg.sender, unlockAmount);
-            pending = pending.sub(unlockAmount);
-
             //create the stream or add funds to stream
             (bool hasVotingStream, bool hasNormalStream) =
                 stream.hasStream(msg.sender);
