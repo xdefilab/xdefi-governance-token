@@ -114,21 +114,21 @@ contract('XStream', ([alice, bob, minter]) => {
             result = await this.stream.fundsToStream(streamId, '1000000000000000000000', { from: alice });
             withdrawable = (await this.halflife.balanceOf(streamId)).withdrawable.toString();
             let remaining = (await this.halflife.balanceOf(streamId)).remaining.toString();
-            assert.equal(withdrawable, '2583574155093053000');//2.50 + 0.08 = 2.58
-            assert.equal(remaining, '3997416425844906947000');//2997.5 + 1000.0 - 0.08 = 3997.42
+            assert.equal(withdrawable, '1002091983948579836671');
+            assert.equal(remaining, '2997908016051420163329');
 
             let stream = await this.halflife.getStream(streamId);
             assert.equal(stream.depositAmount, '4000000000000000000000');
             assert.equal(stream.lastRewardBlock, '250');
 
-            //alice balance = 100 - 3 - 1 = 96
+            //alice balance
             assert.equal((await this.xdex.balanceOf(alice)).toString(), '96000000000000000000000');
 
             await time.advanceBlockTo('255');
             remaining = (await this.halflife.balanceOf(streamId)).remaining.toString();
             withdrawable = (await this.halflife.balanceOf(streamId)).withdrawable.toString();
-            assert.equal(remaining, '3997083155032775292681');//3997.08
-            assert.equal(withdrawable, '2916844967224707319');//2.92
+            assert.equal(remaining, '2997658075806829739623');
+            assert.equal(withdrawable, '1002341924193170260377');
 
             //bob withdraw 0.2 from stream
             await time.advanceBlockTo('269');
@@ -138,8 +138,8 @@ contract('XStream', ([alice, bob, minter]) => {
             stream = await this.halflife.getStream(streamId);
             assert.equal(stream.depositAmount, '4000000000000000000000');
             assert.equal(stream.lastRewardBlock, '270');
-            assert.equal(stream.remaining.toString(), '3996083509298823896912');//3996.08
-            assert.equal(stream.withdrawable.toString(), '3716490701176103088');//3.71
+            assert.equal(stream.remaining.toString(), '2996908380093456302038');
+            assert.equal(stream.withdrawable.toString(), '1002891619906543697962');
         });
     });
 });

@@ -193,6 +193,6 @@ contract XdexStream is ReentrancyGuard {
         /* Transfer the tokens to this contract. */
         IERC20(xdex).transferFrom(msg.sender, address(this), amount);
 
-        result = halflife.fundStream(streamId, amount);
+        result = halflife.lazyFundStream(streamId, amount);
     }
 }
