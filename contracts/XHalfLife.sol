@@ -388,8 +388,8 @@ contract XHalfLife is ReentrancyGuard {
 
         // update remaining and withdrawable balance
         stream.lastRewardBlock = block.number;
-        stream.remaining = remaining.add(amount).sub(s); // = remaining + (amount - s)
-        stream.withdrawable = withdrawable.add(s); // = withdrawable + s
+        stream.remaining = remaining.add(s); // = remaining + s
+        stream.withdrawable = withdrawable.add(amount).sub(s); // = withdrawable + (amount - s)
 
         // add funds to total deposit amount
         stream.depositAmount = stream.depositAmount.add(amount);
