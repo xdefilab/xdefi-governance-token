@@ -380,12 +380,12 @@ contract("XHalflife", ([alice, bob, carol, minter]) => {
 
             assert.equal(
                 (await this.halflife.balanceOf("1")).remaining.toString(),
-                "22929855677795401725"
+                "27070144322204598275"
             );
             //bob's withdrawable amount: 80
             assert.equal(
                 (await this.halflife.balanceOf("1")).withdrawable.toString(),
-                "87070144322204598275"
+                "82929855677795401725"
             );
 
             await time.advanceBlockTo("424");
@@ -401,21 +401,21 @@ contract("XHalflife", ([alice, bob, carol, minter]) => {
 
             assert.equal(
                 (await this.halflife.balanceOf("1")).withdrawable.toString(),
-                "167929152151410684161"
+                "109710168059140152240"
             );
             assert.equal(
                 (await this.halflife.balanceOf("1")).remaining.toString(),
-                "22070847848589315839"
+                "80289831940859847760"
             );
 
             await time.advanceBlockTo("430");
             assert.equal(
                 (await this.halflife.balanceOf("1")).withdrawable.toString(),
-                "180129616771520826634"
+                "154093295552434905780"
             );
             assert.equal(
                 (await this.halflife.balanceOf("1")).remaining.toString(),
-                "9870383228479173366"
+                "35906704447565094220"
             );
 
             await time.advanceBlockTo("439");
@@ -431,11 +431,11 @@ contract("XHalflife", ([alice, bob, carol, minter]) => {
             );
             assert.equal(
                 (await this.halflife.balanceOf("1")).withdrawable.toString(),
-                "186319389740745897190"
+                "181886237801135428475"
             );
             assert.equal(
                 (await this.halflife.balanceOf("1")).remaining.toString(),
-                "1680610259254102810"
+                "6113762198864571525"
             );
 
             await time.advanceBlockTo("454");
@@ -453,11 +453,11 @@ contract("XHalflife", ([alice, bob, carol, minter]) => {
             assert.equal(stream.depositAmount.toString(), "193000000000000000000");
             assert.equal(
                 (await this.halflife.balanceOf("1")).withdrawable.toString(),
-                "189607689706807549854"
+                "188573424853818397806"
             );
             assert.equal(
                 (await this.halflife.balanceOf("1")).remaining.toString(),
-                "1392310293192450146"
+                "2426575146181602194"
             );
         });
 
