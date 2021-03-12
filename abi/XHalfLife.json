@@ -482,6 +482,11 @@
                     "internalType": "uint256",
                     "name": "amount",
                     "type": "uint256"
+                },
+                {
+                    "internalType": "uint256",
+                    "name": "blockHeightDiff",
+                    "type": "uint256"
                 }
             ],
             "name": "lazyFundStream",
