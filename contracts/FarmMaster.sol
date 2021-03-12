@@ -447,6 +447,7 @@ contract FarmMaster is ReentrancyGuard {
 
         PoolInfo storage pool = poolInfo[_pid];
         uint256 index = _getLpIndexInPool(_pid, _lpToken);
+        uint256 blockHeightDiff = block.number.sub(pool.lastRewardBlock);
 
         require(index < poolInfo[_pid].LpTokenInfos.length, "not valid index");
 
@@ -476,7 +477,11 @@ contract FarmMaster is ReentrancyGuard {
                         require(streamId > 0, "not valid stream id");
 
                         xdex.approve(address(stream), pending);
-                        stream.fundsToStream(streamId, pending);
+                        stream.fundsToStream(
+                            streamId,
+                            pending,
+                            blockHeightDiff
+                        );
                     }
                 } else {
                     if (hasNormalStream) {
@@ -486,7 +491,11 @@ contract FarmMaster is ReentrancyGuard {
                         require(streamId > 0, "not valid stream id");
 
                         xdex.approve(address(stream), pending);
-                        stream.fundsToStream(streamId, pending);
+                        stream.fundsToStream(
+                            streamId,
+                            pending,
+                            blockHeightDiff
+                        );
                     }
                 }
             }
@@ -549,6 +558,7 @@ contract FarmMaster is ReentrancyGuard {
         PoolInfo storage pool = poolInfo[_pid];
         uint256 index = _getLpIndexInPool(_pid, _lpToken);
         require(index < poolInfo[_pid].LpTokenInfos.length, "not valid index");
+        uint256 blockHeightDiff = block.number.sub(pool.lastRewardBlock);
 
         updatePool(_pid);
 
@@ -579,7 +589,7 @@ contract FarmMaster is ReentrancyGuard {
                     require(streamId > 0, "not valid stream id");
 
                     xdex.approve(address(stream), pending);
-                    stream.fundsToStream(streamId, pending);
+                    stream.fundsToStream(streamId, pending, blockHeightDiff);
                 }
             } else {
                 if (hasNormalStream) {
@@ -589,7 +599,7 @@ contract FarmMaster is ReentrancyGuard {
                     require(streamId > 0, "not valid stream id");
 
                     xdex.approve(address(stream), pending);
-                    stream.fundsToStream(streamId, pending);
+                    stream.fundsToStream(streamId, pending, blockHeightDiff);
                 }
             }
         }

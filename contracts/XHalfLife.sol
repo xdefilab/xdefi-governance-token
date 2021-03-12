@@ -30,7 +30,7 @@ contract XHalfLife is ReentrancyGuard {
         uint256 withdrawable; // withdrawable balance
         uint256 startBlock; // when should start
         uint256 kBlock; // interval K blocks
-        uint256 unlockRatio; // must be between [1-999], which means 0.1% to 100.0%
+        uint256 unlockRatio; // must be between [1-999], which means 0.1% to 99.9%
         uint256 denom; // one readable coin represent
         uint256 lastRewardBlock; // update by create(), fund() and withdraw()
         address token; // ERC20 token address or 0xEe for Ether
@@ -135,7 +135,7 @@ contract XHalfLife is ReentrancyGuard {
         createStreamPreflight(recipient, depositAmount, startBlock, kBlock)
         returns (uint256 streamId)
     {
-        require(unlockRatio <= 1000, "unlockRatio must <= 1000");
+        require(unlockRatio < 1000, "unlockRatio must < 1000");
         require(unlockRatio > 0, "unlockRatio must > 0");
 
         require(token.isContract(), "not contract");
@@ -212,7 +212,7 @@ contract XHalfLife is ReentrancyGuard {
         createStreamPreflight(recipient, msg.value, startBlock, kBlock)
         returns (uint256 streamId)
     {
-        require(unlockRatio <= 1000, "unlockRatio must <= 1000");
+        require(unlockRatio < 1000, "unlockRatio must < 1000");
         require(unlockRatio > 0, "unlockRatio must > 0");
         require(msg.value >= 10**14, "deposit too small");
 
@@ -350,14 +350,13 @@ contract XHalfLife is ReentrancyGuard {
      * @dev Throws if the caller is not the stream.sender
      * @param streamId The id of the stream to query.
      * @param amount deposit amount by stream sender
+     * @param blockHeightDiff diff of block.number and farmPool's lastRewardBlock
      */
-    function lazyFundStream(uint256 streamId, uint256 amount)
-        external
-        payable
-        nonReentrant
-        streamExists(streamId)
-        returns (bool)
-    {
+    function lazyFundStream(
+        uint256 streamId,
+        uint256 amount,
+        uint256 blockHeightDiff
+    ) external payable nonReentrant streamExists(streamId) returns (bool) {
         Stream storage stream = streams[streamId];
         require(
             msg.sender == stream.sender,
@@ -372,7 +371,7 @@ contract XHalfLife is ReentrancyGuard {
 
         (uint256 withdrawable, uint256 remaining) = balanceOf(streamId);
 
-        uint256 blockHeightDiff = block.number.sub(stream.lastRewardBlock);
+        //uint256 blockHeightDiff = block.number.sub(stream.lastRewardBlock);
         // If underflow m might be 0, peg true kBlock to 1, if bHD 0 then error.
         // Minimum amount is 100
         uint256 m = amount.mul(ONE).div(blockHeightDiff);

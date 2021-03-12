@@ -54,10 +54,11 @@ interface IXHalfLife {
         payable
         returns (bool);
 
-    function lazyFundStream(uint256 streamId, uint256 amount)
-        external
-        payable
-        returns (bool);
+    function lazyFundStream(
+        uint256 streamId,
+        uint256 amount,
+        uint256 blockHeightDiff
+    ) external payable returns (bool);
 
     function getVersion() external pure returns (bytes32);
 }

@@ -62,9 +62,9 @@ contract Timelock {
         uint256 eta
     );
 
-    uint256 public constant GRACE_PERIOD = 14 days;
-    uint256 public constant MINIMUM_DELAY = 2 days;
-    uint256 public constant MAXIMUM_DELAY = 30 days;
+    uint256 public constant GRACE_PERIOD = 4 days;
+    uint256 public constant MINIMUM_DELAY = 1 days;
+    uint256 public constant MAXIMUM_DELAY = 7 days;
 
     address public admin;
     address public pendingAdmin;
@@ -139,6 +139,7 @@ contract Timelock {
             msg.sender == admin,
             "Timelock::queueTransaction: Call must come from admin."
         );
+
         require(
             eta >= getBlockTimestamp().add(delay),
             "Timelock::queueTransaction: Estimated execution block must satisfy delay."
@@ -224,7 +225,7 @@ contract Timelock {
         return returnData;
     }
 
-    function getBlockTimestamp() internal view returns (uint256) {
+    function getBlockTimestamp() public view returns (uint256) {
         // solium-disable-next-line security/no-block-members
         return block.timestamp;
     }

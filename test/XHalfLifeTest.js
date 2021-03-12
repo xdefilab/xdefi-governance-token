@@ -374,7 +374,7 @@ contract("XHalflife", ([alice, bob, carol, minter]) => {
 
             await time.advanceBlockTo("419");
             //fund 10
-            await this.halflife.lazyFundStream("1", "10000000000000000000", {
+            await this.halflife.lazyFundStream("1", "10000000000000000000", "10", {
                 from: alice,
             });
 
@@ -390,7 +390,7 @@ contract("XHalflife", ([alice, bob, carol, minter]) => {
 
             await time.advanceBlockTo("424");
             //fund 80
-            await this.halflife.lazyFundStream("1", "80000000000000000000", {
+            await this.halflife.lazyFundStream("1", "80000000000000000000", "5", {
                 from: alice,
             });
             //alice balance should be 200 - 100 - 10 - 80 = 10
@@ -440,7 +440,7 @@ contract("XHalflife", ([alice, bob, carol, minter]) => {
 
             await time.advanceBlockTo("454");
             //block 455, fund 3
-            await this.halflife.lazyFundStream("1", "3000000000000000000", {
+            await this.halflife.lazyFundStream("1", "3000000000000000000", "30", {
                 from: alice,
             });
             //alice balance = 10 - 3 = 7
@@ -453,11 +453,11 @@ contract("XHalflife", ([alice, bob, carol, minter]) => {
             assert.equal(stream.depositAmount.toString(), "193000000000000000000");
             assert.equal(
                 (await this.halflife.balanceOf("1")).withdrawable.toString(),
-                "188573424853818397806"
+                "189210139098114558201"
             );
             assert.equal(
                 (await this.halflife.balanceOf("1")).remaining.toString(),
-                "2426575146181602194"
+                "1789860901885441799"
             );
         });
 

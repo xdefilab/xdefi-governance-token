@@ -180,11 +180,13 @@ contract XdexStream is ReentrancyGuard {
      * @notice Send funds to the stream
      * @param streamId The given stream id;
      * @param amount New amount fund to add;
+     * @param blockHeightDiff diff of block.number and farmPool's lastRewardBlock;
      */
-    function fundsToStream(uint256 streamId, uint256 amount)
-        public
-        returns (bool result)
-    {
+    function fundsToStream(
+        uint256 streamId,
+        uint256 amount,
+        uint256 blockHeightDiff
+    ) public returns (bool result) {
         require(amount > 0, "amount is zero");
 
         /* Approve the XHalflife contract to spend. */
@@ -193,6 +195,6 @@ contract XdexStream is ReentrancyGuard {
         /* Transfer the tokens to this contract. */
         IERC20(xdex).transferFrom(msg.sender, address(this), amount);
 
-        result = halflife.lazyFundStream(streamId, amount);
+        result = halflife.lazyFundStream(streamId, amount, blockHeightDiff);
     }
 }
