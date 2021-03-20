@@ -547,8 +547,8 @@ contract XHalfLife is ReentrancyGuard {
             streamId,
             stream.sender,
             stream.recipient,
-            withdrawable,
-            remaining
+            remaining,
+            withdrawable
         );
         return true;
     }
