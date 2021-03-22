@@ -197,6 +197,25 @@
                 {
                     "indexed": true,
                     "internalType": "address",
+                    "name": "safu",
+                    "type": "address"
+                },
+                {
+                    "indexed": true,
+                    "internalType": "address",
+                    "name": "_safu",
+                    "type": "address"
+                }
+            ],
+            "name": "SetSafu",
+            "type": "event"
+        },
+        {
+            "anonymous": false,
+            "inputs": [
+                {
+                    "indexed": true,
+                    "internalType": "address",
                     "name": "_stream",
                     "type": "address"
                 },
@@ -543,6 +562,21 @@
                 }
             ],
             "name": "setCore",
+            "outputs": [],
+            "payable": false,
+            "stateMutability": "nonpayable",
+            "type": "function"
+        },
+        {
+            "constant": false,
+            "inputs": [
+                {
+                    "internalType": "address",
+                    "name": "_safu",
+                    "type": "address"
+                }
+            ],
+            "name": "setSafu",
             "outputs": [],
             "payable": false,
             "stateMutability": "nonpayable",
