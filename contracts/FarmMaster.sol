@@ -148,6 +148,7 @@ contract FarmMaster is ReentrancyGuard {
     event SetCore(address indexed _core, address indexed _coreNew);
     event SetStream(address indexed _stream, address indexed _streamNew);
     event SetVotingPool(uint256 indexed _pid);
+    event SetSafu(address indexed safu, address indexed _safu);
 
     /**
      * @dev Throws if the msg.sender unauthorized.
@@ -200,6 +201,13 @@ contract FarmMaster is ReentrancyGuard {
         require(_core != address(0), "ERR_ZERO_ADDRESS");
         emit SetCore(core, _core);
         core = _core;
+    }
+
+    // Set new SAFU
+    function setSafu(address _safu) external onlyCore {
+        require(_safu != address(0), "ERR_ZERO_ADDRESS");
+        emit SetSafu(safu, _safu);
+        safu = _safu;
     }
 
     // Add a new lp to the pool. Can only be called by the core.
