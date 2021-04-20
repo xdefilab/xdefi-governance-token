@@ -27,12 +27,12 @@ contract XdexStream is ReentrancyGuard {
     uint256 private constant unlockRatio = 1;
 
     //unlock k block for Voting Pool
-    uint256 private constant unlockKBlocksV = 540;
+    uint256 private constant unlockKBlocksV = 2160;
     // key: recipient, value: Locked Stream
     mapping(address => LockStream) private votingStreams;
 
     //funds for Normal Pool
-    uint256 private constant unlockKBlocksN = 60;
+    uint256 private constant unlockKBlocksN = 240;
     // key: recipient, value: Locked Stream
     mapping(address => LockStream) private normalStreams;
 

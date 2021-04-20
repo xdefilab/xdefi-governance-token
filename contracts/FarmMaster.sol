@@ -53,21 +53,21 @@ contract FarmMaster is ReentrancyGuard {
     mapping(bytes32 => uint256) private lpIndexInPool;
 
     /*
-     * In [0, 60000) blocks, 160 XDEX per block, 9600000 XDEX distributed;
-     * In [60000, 180000) blocks, 80 XDEX per block, 9600000 XDEX distributed;
-     * In [180000, 420000) blocks, 40 XDEX per block, 9600000 XDEX distributed;
-     * In [420000, 900000) blocks, 20 XDEX per block, 9600000 XDEX distributed;
-     * After 900000 blocks, 8 XDEX distributed per block.
+     * In [0, 60000) blocks, at most 16 XDEX per block, 960000 XDEX distributed;
+     * In [60000, 180000) blocks, at most 8 XDEX per block, 960000 XDEX distributed;
+     * In [180000, 420000) blocks, at most 4 XDEX per block 40 XDEX per block, 960000 XDEX distributed;
+     * In [420000, 900000) blocks, 2 XDEX per block, 960000 XDEX distributed;
+     * After 900000 blocks, 1 XDEX distributed per block.
      */
     uint256[4] public bonusEndBlocks = [60000, 180000, 420000, 900000];
 
-    // 160, 80, 40, 20, 8 XDEX per block
+    // 16, 8, 4, 2, 1 XDEX per block
     uint256[5] public tokensPerBlock = [
-        uint256(160 * ONE),
-        uint256(80 * ONE),
-        uint256(40 * ONE),
-        uint256(20 * ONE),
-        uint256(8 * ONE)
+        uint256(16 * ONE),
+        uint256(8 * ONE),
+        uint256(4 * ONE),
+        uint256(2 * ONE),
+        uint256(1 * ONE)
     ];
 
     // First deposit incentive (once for each new user): 10 XDEX
